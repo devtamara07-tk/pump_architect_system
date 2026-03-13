@@ -67,6 +67,7 @@ def get_column_config():
 
 # --- 3. PAGE ROUTING & UI ---
 def render_create_project():
+    st.button("⬅️ Back to Main Page", on_click=lambda: st.session_state.update(page="home"))
     st.header("🛠️ Create a New Project")
     col1, col2 = st.columns(2)
     with col1:

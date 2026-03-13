@@ -8,11 +8,14 @@ import os
 
 # --- 1. UTILITY FUNCTIONS ---
 def get_base64_image(image_path):
-    """Loads images from the same folder as the script for the dashboard icons."""
+    """Loads images using an absolute path so Streamlit Cloud always finds them."""
     try:
-        with open(image_path, "rb") as img_file:
+        # This creates a strict 'GPS coordinate' for the image file
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        abs_file_path = os.path.join(script_dir, image_path)
+        with open(abs_file_path, "rb") as img_file:
             return base64.b64encode(img_file.read()).decode()
-    except Exception:
+    except Exception as e:
         return ""
 
 # --- 2. DATABASE SETUP ---
@@ -167,7 +170,7 @@ init_db()
 if "page" not in st.session_state: st.session_state.page = "home"
 
 if st.session_state.page == "home":
-    st.title("🚰 Pump Test Architect")
+    st.title("🚰 Walrus Pump Test Architect")
     if st.button("➕ Create New Project"):
         st.session_state.page = "create"
         st.rerun()

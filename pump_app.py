@@ -78,7 +78,7 @@ def get_column_config():
 # --- 3. PAGE ROUTING & UI ---
 def render_project_form(edit_id=None):
     if st.button("⬅️ Back to Main Page"):
-        for key in ["specs_df", "edit_loaded", "p_type_default", "t_type_default", "edit_project_id"]:
+        for key in ["specs_df", "edit_loaded", "p_type_default", "t_type_default", "edit_project_id", "tanks"]:
             if key in st.session_state: del st.session_state[key]
         st.session_state.page = "home"
         st.rerun()
@@ -113,6 +113,8 @@ def render_project_form(edit_id=None):
         if not pump_data.empty:
             for tank_name in pump_data['tank_name'].unique():
                 if tank_name != "Unassigned":
+                    if tank_name not in st.session_state.tanks:
+                        st.session_state.tanks[tank_name] = []
                     st.session_state.tanks[tank_name] = pump_data[pump_data['tank_name'] == tank_name]['pump_id'].tolist()
         
         st.session_state.edit_loaded = True
@@ -151,10 +153,8 @@ def render_project_form(edit_id=None):
         key="create_table"
     )
     
-    # --- BUG FIX: Force clean the broken Streamlit index instantly ---
     edited_df = edited_df.reset_index(drop=True)
     
-    # Auto-generate IDs and No.
     new_ids = []
     new_nos = []
     counter = 1
@@ -180,12 +180,35 @@ def render_project_form(edit_id=None):
     valid_pumps = edited_df["Pump ID"].dropna().tolist()
     if valid_pumps:
         st.divider()
-        if "tanks" not in st.session_state: st.session_state.tanks = {"Water Tank 1": []}
+        st.write("### 4. Pump Test Installation Layout")
+        
+        if "tanks" not in st.session_state: 
+            st.session_state.tanks = {"Water Tank 1": []}
+            
+        # --- Add New Water Tank Input ---
+        col_t1, col_t2 = st.columns([3, 1])
+        with col_t1:
+            new_tank_name = st.text_input("Add a New Water Tank", placeholder="e.g., Water Tank 2", label_visibility="collapsed")
+        with col_t2:
+            if st.button("➕ Add Water Tank", use_container_width=True):
+                if new_tank_name and new_tank_name not in st.session_state.tanks:
+                    st.session_state.tanks[new_tank_name] = []
+                    st.rerun()
+                    
+        # --- Display Tank Assignment Boxes ---
         for tank in list(st.session_state.tanks.keys()):
             with st.container(border=True):
                 st.write(f"**{tank}**")
-                st.session_state.tanks[tank] = st.multiselect(f"Assign to {tank}:", valid_pumps, default=[p for p in st.session_state.tanks[tank] if p in valid_pumps], key=tank)
+                # Make sure we only show pumps that currently exist in the table
+                valid_assigned_pumps = [p for p in st.session_state.tanks[tank] if p in valid_pumps]
+                st.session_state.tanks[tank] = st.multiselect(
+                    f"Assign to {tank}:", 
+                    valid_pumps, 
+                    default=valid_assigned_pumps, 
+                    key=f"select_{tank}"
+                )
         
+        st.write("") # Quick spacing
         if st.button("💾 Save Project", type="primary"):
             conn = sqlite3.connect(DB_FILE)
             c = conn.cursor()
@@ -202,7 +225,7 @@ def render_project_form(edit_id=None):
                 conn.commit()
                 st.success("Project Saved!")
                 
-                for key in ["specs_df", "edit_loaded", "p_type_default", "t_type_default", "edit_project_id"]:
+                for key in ["specs_df", "edit_loaded", "p_type_default", "t_type_default", "edit_project_id", "tanks"]:
                     if key in st.session_state: del st.session_state[key]
                 st.session_state.page = "home"
                 st.rerun()
@@ -235,7 +258,7 @@ init_db()
 if "page" not in st.session_state: st.session_state.page = "home"
 
 if st.session_state.page == "home":
-    for k in ["specs_df", "edit_loaded", "p_type_default", "t_type_default", "edit_project_id"]:
+    for k in ["specs_df", "edit_loaded", "p_type_default", "t_type_default", "edit_project_id", "tanks"]:
         if k in st.session_state: del st.session_state[k]
 
 if st.session_state.page == "home":

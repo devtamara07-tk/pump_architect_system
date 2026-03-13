@@ -113,7 +113,7 @@ def render_create_project():
     st.session_state.specs_df = edited_df.drop(columns=["Pump ID"]) # keep only input columns in session
     st.divider()
     st.write("### 4. Installation Layout")
-    valid_pump_ids = display_df["Pump ID"].dropna().tolist()
+    valid_pump_ids = edited_df["Pump ID"].dropna().tolist()
     if len(valid_pump_ids) > 0:
         if "tanks" not in st.session_state:
             st.session_state.tanks = {"Water Tank 1": []}

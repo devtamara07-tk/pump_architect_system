@@ -100,11 +100,17 @@ def render_create_project():
             counter += 1
         else:
             pump_ids.append(None)
-    # Add Pump ID column for display only
-    display_df = edited_df.copy()
-    display_df.insert(0, "Pump ID", pump_ids)
-    st.dataframe(display_df, use_container_width=True, hide_index=True)
-    st.session_state.specs_df = edited_df
+    # Only show the table with Pump ID for display
+    edited_df.insert(0, "Pump ID", pump_ids)
+    st.data_editor(
+        edited_df,
+        num_rows="dynamic",
+        use_container_width=True,
+        hide_index=True,
+        column_config=get_column_config(),
+        key="create_pump_table_display"
+    )
+    st.session_state.specs_df = edited_df.drop(columns=["Pump ID"]) # keep only input columns in session
     st.divider()
     st.write("### 4. Installation Layout")
     valid_pump_ids = display_df["Pump ID"].dropna().tolist()

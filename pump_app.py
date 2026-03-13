@@ -63,7 +63,6 @@ def delete_project(project_id):
 def get_column_config():
     return {
         "Pump Model": st.column_config.TextColumn("Pump Model", width="medium"),
-        "No.": st.column_config.TextColumn("No.", disabled=True, width="small"),
         "Pump ID": st.column_config.TextColumn("Pump ID", disabled=True, width="small"),
         "ISO No.": st.column_config.TextColumn("ISO No.", width="medium"),
         "HP": st.column_config.NumberColumn("HP", width="small"),
@@ -96,7 +95,6 @@ def render_project_form(edit_id=None):
         df = pd.DataFrame()
         if not pump_data.empty:
             df["Pump Model"] = pump_data["model"]
-            df["No."] = [str(i+1) for i in range(len(pump_data))]
             df["Pump ID"] = pump_data["pump_id"]
             df["ISO No."] = pump_data["iso_no"]
             df["HP"] = pump_data["hp"]
@@ -131,16 +129,17 @@ def render_project_form(edit_id=None):
     st.divider()
     
     st.write("### 3. Pump Specs")
-    st.info("💡 **Remark:** To add a pump, simply type the model name into the **Pump Model** column. The **No.** and **Pump ID** will generate automatically.")
+    st.info("💡 **Remark:** To add a pump, simply type the model name into the **Pump Model** column. The **Pump ID** will generate automatically.")
     
-    desired_columns = ["Pump Model", "No.", "Pump ID", "ISO No.", "HP", "kW", "Voltage (V)", "Amp (A)", "Phase", "Hertz", "Insulation"]
+    desired_columns = ["Pump Model", "Pump ID", "ISO No.", "HP", "kW", "Voltage (V)", "Amp (A)", "Phase", "Hertz", "Insulation"]
     
     if "specs_df" not in st.session_state or st.session_state.specs_df is None:
         df = pd.DataFrame(columns=desired_columns)
         st.session_state.specs_df = df
     else:
-        if "No." not in st.session_state.specs_df.columns:
-            st.session_state.specs_df.insert(1, "No.", None)
+        # Safety check: if the app remembers the "No." column, this forces it out
+        if "No." in st.session_state.specs_df.columns:
+            st.session_state.specs_df = st.session_state.specs_df.drop(columns=["No."])
         if set(st.session_state.specs_df.columns) == set(desired_columns):
             st.session_state.specs_df = st.session_state.specs_df[desired_columns]
     
@@ -153,26 +152,24 @@ def render_project_form(edit_id=None):
         key="create_table"
     )
     
+    # --- The vacuum cleaner command ---
     edited_df = edited_df.reset_index(drop=True)
     
+    # Auto-generate IDs
     new_ids = []
-    new_nos = []
     counter = 1
     for _, row in edited_df.iterrows():
         if pd.notna(row.get("Pump Model")) and str(row.get("Pump Model")).strip() != "":
             new_ids.append(f"P-{str(counter).zfill(2)}")
-            new_nos.append(str(counter))
             counter += 1
         else:
             new_ids.append(None)
-            new_nos.append(None)
             
     current_ids = [str(x) if pd.notna(x) else None for x in edited_df["Pump ID"]]
-    current_nos = [str(x) if pd.notna(x) else None for x in edited_df["No."]]
 
-    if current_ids != new_ids or current_nos != new_nos:
+    # If ID changes are detected, apply them and refresh
+    if current_ids != new_ids:
         edited_df["Pump ID"] = new_ids
-        edited_df["No."] = new_nos
         st.session_state.specs_df = edited_df
         if "create_table" in st.session_state: del st.session_state["create_table"]
         st.rerun()
@@ -185,30 +182,39 @@ def render_project_form(edit_id=None):
         if "tanks" not in st.session_state: 
             st.session_state.tanks = {"Water Tank 1": []}
             
-        # --- Add New Water Tank Input ---
-        col_t1, col_t2 = st.columns([3, 1])
-        with col_t1:
-            new_tank_name = st.text_input("Add a New Water Tank", placeholder="e.g., Water Tank 2", label_visibility="collapsed")
-        with col_t2:
-            if st.button("➕ Add Water Tank", use_container_width=True):
-                if new_tank_name and new_tank_name not in st.session_state.tanks:
-                    st.session_state.tanks[new_tank_name] = []
-                    st.rerun()
-                    
-        # --- Display Tank Assignment Boxes ---
+        if st.button("➕ Add Water Tank", use_container_width=True):
+            next_num = len(st.session_state.tanks) + 1
+            new_tank_name = f"Water Tank {next_num}"
+            while new_tank_name in st.session_state.tanks:
+                next_num += 1
+                new_tank_name = f"Water Tank {next_num}"
+            st.session_state.tanks[new_tank_name] = []
+            st.rerun()
+                
+        for tank in list(st.session_state.tanks.keys()):
+            widget_key = f"select_{tank}"
+            if widget_key in st.session_state:
+                st.session_state.tanks[tank] = [p for p in st.session_state[widget_key] if p in valid_pumps]
+                
         for tank in list(st.session_state.tanks.keys()):
             with st.container(border=True):
                 st.write(f"**{tank}**")
-                # Make sure we only show pumps that currently exist in the table
-                valid_assigned_pumps = [p for p in st.session_state.tanks[tank] if p in valid_pumps]
-                st.session_state.tanks[tank] = st.multiselect(
+                
+                assigned_to_others = []
+                for other_tank, p_list in st.session_state.tanks.items():
+                    if other_tank != tank:
+                        assigned_to_others.extend(p_list)
+                
+                available_pumps = [p for p in valid_pumps if p not in assigned_to_others]
+                
+                st.multiselect(
                     f"Assign to {tank}:", 
-                    valid_pumps, 
-                    default=valid_assigned_pumps, 
+                    options=available_pumps, 
+                    default=st.session_state.tanks[tank], 
                     key=f"select_{tank}"
                 )
         
-        st.write("") # Quick spacing
+        st.write("") 
         if st.button("💾 Save Project", type="primary"):
             conn = sqlite3.connect(DB_FILE)
             c = conn.cursor()

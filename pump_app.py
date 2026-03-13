@@ -63,6 +63,7 @@ def delete_project(project_id):
 def get_column_config():
     return {
         "Pump Model": st.column_config.TextColumn("Pump Model", width="medium"),
+        "No.": st.column_config.TextColumn("No.", disabled=True, width="small"),
         "Pump ID": st.column_config.TextColumn("Pump ID", disabled=True, width="small"),
         "ISO No.": st.column_config.TextColumn("ISO No.", width="medium"),
         "HP": st.column_config.NumberColumn("HP", width="small"),
@@ -95,6 +96,7 @@ def render_project_form(edit_id=None):
         df = pd.DataFrame()
         if not pump_data.empty:
             df["Pump Model"] = pump_data["model"]
+            df["No."] = [str(i+1) for i in range(len(pump_data))]
             df["Pump ID"] = pump_data["pump_id"]
             df["ISO No."] = pump_data["iso_no"]
             df["HP"] = pump_data["hp"]
@@ -105,7 +107,6 @@ def render_project_form(edit_id=None):
             df["Hertz"] = pump_data["hertz"]
             df["Insulation"] = pump_data["insulation"]
         
-        df.index.name = "Index" # explicitly name the index column
         st.session_state.specs_df = df
         
         st.session_state.tanks = {"Water Tank 1": []}
@@ -128,39 +129,50 @@ def render_project_form(edit_id=None):
     st.divider()
     
     st.write("### 3. Pump Specs")
-    st.info("💡 **Remark:** To add a pump, click the empty **Pump Model** cell in the bottom row and type the model name. The **Index** and **Pump ID** will generate automatically.")
+    st.info("💡 **Remark:** To add a pump, simply type the model name into the **Pump Model** column. The **No.** and **Pump ID** will generate automatically.")
     
-    desired_columns = ["Pump Model", "Pump ID", "ISO No.", "HP", "kW", "Voltage (V)", "Amp (A)", "Phase", "Hertz", "Insulation"]
+    # --- New Column Order applied here ---
+    desired_columns = ["Pump Model", "No.", "Pump ID", "ISO No.", "HP", "kW", "Voltage (V)", "Amp (A)", "Phase", "Hertz", "Insulation"]
     
     if "specs_df" not in st.session_state or st.session_state.specs_df is None:
         df = pd.DataFrame(columns=desired_columns)
-        df.index.name = "Index"
         st.session_state.specs_df = df
     else:
+        # Safety catch to ensure columns are ordered correctly even on reload
+        if "No." not in st.session_state.specs_df.columns:
+            st.session_state.specs_df.insert(1, "No.", None)
         if set(st.session_state.specs_df.columns) == set(desired_columns):
             st.session_state.specs_df = st.session_state.specs_df[desired_columns]
-        st.session_state.specs_df.index.name = "Index"
     
     edited_df = st.data_editor(
         st.session_state.specs_df, 
         num_rows="dynamic", 
         use_container_width=True,
-        hide_index=False,
+        hide_index=True, # Streamlit index hidden completely
         column_config=get_column_config(),
         key="create_table"
     )
     
+    # Auto-generate IDs and No.
     new_ids = []
+    new_nos = []
     counter = 1
     for _, row in edited_df.iterrows():
         if pd.notna(row.get("Pump Model")) and str(row.get("Pump Model")).strip() != "":
             new_ids.append(f"P-{str(counter).zfill(2)}")
+            new_nos.append(str(counter))
             counter += 1
         else:
             new_ids.append(None)
+            new_nos.append(None)
             
-    if [str(x) if pd.notna(x) else None for x in edited_df["Pump ID"]] != new_ids:
+    current_ids = [str(x) if pd.notna(x) else None for x in edited_df["Pump ID"]]
+    current_nos = [str(x) if pd.notna(x) else None for x in edited_df["No."]]
+
+    # If changes are detected, apply them and refresh
+    if current_ids != new_ids or current_nos != new_nos:
         edited_df["Pump ID"] = new_ids
+        edited_df["No."] = new_nos
         st.session_state.specs_df = edited_df
         if "create_table" in st.session_state: del st.session_state["create_table"]
         st.rerun()
@@ -186,6 +198,7 @@ def render_project_form(edit_id=None):
                 for _, row in edited_df.dropna(subset=["Pump ID"]).iterrows():
                     p_id = row["Pump ID"]
                     tank = next((t for t, p_list in st.session_state.tanks.items() if p_id in p_list), "Unassigned")
+                    # Notice we don't save the "No." column, preventing any DB errors!
                     c.execute("INSERT INTO pumps VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (p_id, project_name, row["Pump Model"], row["ISO No."], row["HP"], row["kW"], row["Voltage (V)"], row["Amp (A)"], row["Phase"], row["Hertz"], row["Insulation"], tank))
                 conn.commit()
                 st.success("Project Saved!")

@@ -307,7 +307,7 @@ if st.session_state.page == "home":
         if k in st.session_state: del st.session_state[k]
 
 if st.session_state.page == "home":
-    st.title("🚰 Pump Test Architect")
+    st.title("🚰 Pump Test Architect 1.0")
     
     col_new, _ = st.columns([1, 4])
     with col_new:

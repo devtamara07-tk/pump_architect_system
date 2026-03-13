@@ -499,11 +499,6 @@ if st.session_state.page == "home":
                                     conn.commit()
                                     conn.close()
                                     st.rerun()
-    if st.button("⬅️ Cancel & Go Back"):
-        if "specs_df" in st.session_state: del st.session_state.specs_df
-        if "tanks" in st.session_state: del st.session_state.tanks
-        st.session_state.page = "home"
-        st.rerun()
     # Removed render_create_project() from main page
 elif st.session_state.page == "modify":
     render_modify_project(st.session_state.selected_project)

@@ -51,6 +51,15 @@ def get_projects():
     conn.close()
     return df
 
+def delete_project(project_id):
+    """Deletes a project and its associated pumps from the database."""
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("DELETE FROM projects WHERE project_id=?", (project_id,))
+    c.execute("DELETE FROM pumps WHERE project_id=?", (project_id,))
+    conn.commit()
+    conn.close()
+
 def get_column_config():
     return {
         "Pump Model": st.column_config.TextColumn("Pump Model", width="medium"),
@@ -66,27 +75,69 @@ def get_column_config():
     }
 
 # --- 3. PAGE ROUTING & UI ---
-def render_create_project():
-    st.button("⬅️ Back to Main Page", on_click=lambda: st.session_state.update(page="home"))
-    st.header("🛠️ Create a New Project")
+def render_project_form(edit_id=None):
+    # Back button resets any loaded session state so you don't carry edit data into a new project
+    if st.button("⬅️ Back to Main Page"):
+        for key in ["specs_df", "edit_loaded", "p_type_default", "t_type_default", "edit_project_id"]:
+            if key in st.session_state: del st.session_state[key]
+        st.session_state.page = "home"
+        st.rerun()
+        
+    st.header(f"🛠️ {'Modify Project: ' + edit_id if edit_id else 'Create a New Project'}")
+    
+    # --- IF MODIFYING: Pre-load data from database into session state ---
+    conn = sqlite3.connect(DB_FILE)
+    if edit_id and "edit_loaded" not in st.session_state:
+        proj_data = pd.read_sql("SELECT * FROM projects WHERE project_id=?", conn, params=(edit_id,))
+        pump_data = pd.read_sql("SELECT * FROM pumps WHERE project_id=?", conn, params=(edit_id,))
+        
+        # Load header info
+        st.session_state.p_type_default = proj_data.iloc[0]['type'] if not proj_data.empty else "Centrifugal"
+        st.session_state.t_type_default = proj_data.iloc[0]['test_type'] if not proj_data.empty else ""
+        
+        # Load table info
+        df = pd.DataFrame()
+        if not pump_data.empty:
+            df["Pump Model"] = pump_data["model"]
+            df["Pump ID"] = pump_data["pump_id"]
+            df["ISO No."] = pump_data["iso_no"]
+            df["HP"] = pump_data["hp"]
+            df["kW"] = pump_data["kw"]
+            df["Voltage (V)"] = pump_data["voltage"]
+            df["Amp (A)"] = pump_data["amp"]
+            df["Phase"] = pump_data["phase"]
+            df["Hertz"] = pump_data["hertz"]
+            df["Insulation"] = pump_data["insulation"]
+        
+        st.session_state.specs_df = df
+        
+        # Load Tank info
+        st.session_state.tanks = {"Water Tank 1": []}
+        if not pump_data.empty:
+            for tank_name in pump_data['tank_name'].unique():
+                if tank_name != "Unassigned":
+                    st.session_state.tanks[tank_name] = pump_data[pump_data['tank_name'] == tank_name]['pump_id'].tolist()
+        
+        st.session_state.edit_loaded = True
+    conn.close()
+
+    # --- UI RENDERING ---
     col1, col2 = st.columns(2)
     with col1:
-        p_type = st.radio("1. Pump Type", ["Centrifugal", "Submersible"])
+        p_type = st.radio("1. Pump Type", ["Centrifugal", "Submersible"], index=0 if st.session_state.get("p_type_default", "Centrifugal") == "Centrifugal" else 1)
     with col2:
-        t_type = st.text_input("2. Test Type", placeholder="e.g., Endurance Test")
+        t_type = st.text_input("2. Test Type", value=st.session_state.get("t_type_default", ""), placeholder="e.g., Endurance Test")
     
     project_name = f"{p_type}_{t_type}" if t_type else p_type
     st.subheader(f"Project Name: **{project_name}**")
     st.divider()
     
     st.write("### 3. Pump Specs")
-    
-    # --- Remark Banner ---
     st.info("💡 **Remark:** Please add a row (using the Index column on the left) and key in the **Pump Model**. The **Pump ID** will be generated automatically.")
     
     desired_columns = ["Pump Model", "Pump ID", "ISO No.", "HP", "kW", "Voltage (V)", "Amp (A)", "Phase", "Hertz", "Insulation"]
     
-    if "specs_df" not in st.session_state:
+    if "specs_df" not in st.session_state or st.session_state.specs_df is None:
         st.session_state.specs_df = pd.DataFrame(columns=desired_columns)
     else:
         if set(st.session_state.specs_df.columns) == set(desired_columns):
@@ -101,7 +152,7 @@ def render_create_project():
         key="create_table"
     )
     
-    # Logic to auto-generate IDs based on Model entry
+    # ID logic
     new_ids = []
     counter = 1
     for _, row in edited_df.iterrows():
@@ -130,6 +181,11 @@ def render_create_project():
             conn = sqlite3.connect(DB_FILE)
             c = conn.cursor()
             try:
+                # If editing an existing project, remove the old data first to safely overwrite it
+                if edit_id:
+                    c.execute("DELETE FROM projects WHERE project_id=?", (edit_id,))
+                    c.execute("DELETE FROM pumps WHERE project_id=?", (edit_id,))
+                    
                 c.execute("INSERT INTO projects VALUES (?,?,?,?)", (project_name, p_type, t_type, datetime.datetime.now()))
                 for _, row in edited_df.dropna(subset=["Pump ID"]).iterrows():
                     p_id = row["Pump ID"]
@@ -137,6 +193,10 @@ def render_create_project():
                     c.execute("INSERT INTO pumps VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (p_id, project_name, row["Pump Model"], row["ISO No."], row["HP"], row["kW"], row["Voltage (V)"], row["Amp (A)"], row["Phase"], row["Hertz"], row["Insulation"], tank))
                 conn.commit()
                 st.success("Project Saved!")
+                
+                # Cleanup session state after saving
+                for key in ["specs_df", "edit_loaded", "p_type_default", "t_type_default", "edit_project_id"]:
+                    if key in st.session_state: del st.session_state[key]
                 st.session_state.page = "home"
                 st.rerun()
             except Exception as e: st.error(f"Error: {e}")
@@ -168,21 +228,56 @@ init_db()
 
 if "page" not in st.session_state: st.session_state.page = "home"
 
+# Safety Cleanup: If returning to home, wipe any old edit data
+if st.session_state.page == "home":
+    for k in ["specs_df", "edit_loaded", "p_type_default", "t_type_default", "edit_project_id"]:
+        if k in st.session_state: del st.session_state[k]
+
 if st.session_state.page == "home":
     st.title("🚰 Pump Test Architect")
-    if st.button("➕ Create New Project"):
+    
+    # Top Section
+    if st.button("➕ Create New Project", type="primary"):
         st.session_state.page = "create"
         st.rerun()
     
+    st.divider()
+    st.subheader("Current Project List")
     projects = get_projects()
-    for _, row in projects.iterrows():
-        with st.expander(f"Project: {row['project_id']}"):
-            if st.button("Open Dashboard", key=row['project_id']):
-                st.session_state.selected_project = row['project_id']
-                st.session_state.page = "dashboard"
-                st.rerun()
+    
+    if projects.empty:
+        st.info("No projects found. Click 'Create New Project' to get started.")
+    else:
+        # Header Row for the list
+        col1, col2, col3, col4 = st.columns([4, 1, 1, 1])
+        col1.markdown("**Project Name**")
+        col2.markdown("**Action**")
+        st.markdown("<hr style='margin: 0.5em 0px; border-color: #e0e0e0;'>", unsafe_allow_html=True)
+        
+        # Display each project
+        for _, row in projects.iterrows():
+            col1, col2, col3, col4 = st.columns([4, 1, 1, 1])
+            with col1:
+                st.write(f"📁 **{row['project_id']}**")
+            with col2:
+                if st.button("OPEN", key=f"open_{row['project_id']}", use_container_width=True):
+                    st.session_state.selected_project = row['project_id']
+                    st.session_state.page = "dashboard"
+                    st.rerun()
+            with col3:
+                if st.button("Modify", key=f"mod_{row['project_id']}", use_container_width=True):
+                    st.session_state.edit_project_id = row['project_id']
+                    st.session_state.page = "modify"
+                    st.rerun()
+            with col4:
+                if st.button("Delete", key=f"del_{row['project_id']}", use_container_width=True):
+                    delete_project(row['project_id'])
+                    st.rerun()
+            st.markdown("<hr style='margin: 0.2em 0px; border-color: #f0f0f0;'>", unsafe_allow_html=True)
 
 elif st.session_state.page == "create":
-    render_create_project()
+    render_project_form()
+elif st.session_state.page == "modify":
+    render_project_form(edit_id=st.session_state.edit_project_id)
 elif st.session_state.page == "dashboard":
     render_dashboard(st.session_state.selected_project)

@@ -10,7 +10,6 @@ import os
 def get_base64_image(image_path):
     """Loads images using an absolute path so Streamlit Cloud always finds them."""
     try:
-        # This creates a strict 'GPS coordinate' for the image file
         script_dir = os.path.dirname(os.path.abspath(__file__))
         abs_file_path = os.path.join(script_dir, image_path)
         with open(abs_file_path, "rb") as img_file:
@@ -92,12 +91,11 @@ def render_create_project():
         if set(st.session_state.specs_df.columns) == set(desired_columns):
             st.session_state.specs_df = st.session_state.specs_df[desired_columns]
     
-    # --- ONLY ONE TABLE RENDERED HERE ---
     edited_df = st.data_editor(
         st.session_state.specs_df, 
         num_rows="dynamic", 
         use_container_width=True,
-        hide_index=False, # Explicitly forces the index to show
+        hide_index=False,
         column_config=get_column_config(),
         key="create_table"
     )
@@ -164,13 +162,13 @@ def render_dashboard(project_name):
     conn.close()
 
 # --- MAIN APP ---
-st.set_page_config(page_title="Walrus Pump Architect", layout="wide")
+st.set_page_config(page_title="Pump Test Architect", layout="wide")
 init_db()
 
 if "page" not in st.session_state: st.session_state.page = "home"
 
 if st.session_state.page == "home":
-    st.title("🚰 Walrus Pump Test Architect")
+    st.title("🚰 Pump Test Architect")
     if st.button("➕ Create New Project"):
         st.session_state.page = "create"
         st.rerun()

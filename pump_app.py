@@ -76,7 +76,6 @@ def get_column_config():
 
 # --- 3. PAGE ROUTING & UI ---
 def render_project_form(edit_id=None):
-    # Back button resets any loaded session state so you don't carry edit data into a new project
     if st.button("⬅️ Back to Main Page"):
         for key in ["specs_df", "edit_loaded", "p_type_default", "t_type_default", "edit_project_id"]:
             if key in st.session_state: del st.session_state[key]
@@ -85,17 +84,14 @@ def render_project_form(edit_id=None):
         
     st.header(f"🛠️ {'Modify Project: ' + edit_id if edit_id else 'Create a New Project'}")
     
-    # --- IF MODIFYING: Pre-load data from database into session state ---
     conn = sqlite3.connect(DB_FILE)
     if edit_id and "edit_loaded" not in st.session_state:
         proj_data = pd.read_sql("SELECT * FROM projects WHERE project_id=?", conn, params=(edit_id,))
         pump_data = pd.read_sql("SELECT * FROM pumps WHERE project_id=?", conn, params=(edit_id,))
         
-        # Load header info
         st.session_state.p_type_default = proj_data.iloc[0]['type'] if not proj_data.empty else "Centrifugal"
         st.session_state.t_type_default = proj_data.iloc[0]['test_type'] if not proj_data.empty else ""
         
-        # Load table info
         df = pd.DataFrame()
         if not pump_data.empty:
             df["Pump Model"] = pump_data["model"]
@@ -109,9 +105,9 @@ def render_project_form(edit_id=None):
             df["Hertz"] = pump_data["hertz"]
             df["Insulation"] = pump_data["insulation"]
         
+        df.index.name = "Index" # explicitly name the index column
         st.session_state.specs_df = df
         
-        # Load Tank info
         st.session_state.tanks = {"Water Tank 1": []}
         if not pump_data.empty:
             for tank_name in pump_data['tank_name'].unique():
@@ -121,7 +117,6 @@ def render_project_form(edit_id=None):
         st.session_state.edit_loaded = True
     conn.close()
 
-    # --- UI RENDERING ---
     col1, col2 = st.columns(2)
     with col1:
         p_type = st.radio("1. Pump Type", ["Centrifugal", "Submersible"], index=0 if st.session_state.get("p_type_default", "Centrifugal") == "Centrifugal" else 1)
@@ -133,15 +128,18 @@ def render_project_form(edit_id=None):
     st.divider()
     
     st.write("### 3. Pump Specs")
-    st.info("💡 **Remark:** Please add a row (using the Index column on the left) and key in the **Pump Model**. The **Pump ID** will be generated automatically.")
+    st.info("💡 **Remark:** To add a pump, click the empty **Pump Model** cell in the bottom row and type the model name. The **Index** and **Pump ID** will generate automatically.")
     
     desired_columns = ["Pump Model", "Pump ID", "ISO No.", "HP", "kW", "Voltage (V)", "Amp (A)", "Phase", "Hertz", "Insulation"]
     
     if "specs_df" not in st.session_state or st.session_state.specs_df is None:
-        st.session_state.specs_df = pd.DataFrame(columns=desired_columns)
+        df = pd.DataFrame(columns=desired_columns)
+        df.index.name = "Index"
+        st.session_state.specs_df = df
     else:
         if set(st.session_state.specs_df.columns) == set(desired_columns):
             st.session_state.specs_df = st.session_state.specs_df[desired_columns]
+        st.session_state.specs_df.index.name = "Index"
     
     edited_df = st.data_editor(
         st.session_state.specs_df, 
@@ -152,7 +150,6 @@ def render_project_form(edit_id=None):
         key="create_table"
     )
     
-    # ID logic
     new_ids = []
     counter = 1
     for _, row in edited_df.iterrows():
@@ -181,7 +178,6 @@ def render_project_form(edit_id=None):
             conn = sqlite3.connect(DB_FILE)
             c = conn.cursor()
             try:
-                # If editing an existing project, remove the old data first to safely overwrite it
                 if edit_id:
                     c.execute("DELETE FROM projects WHERE project_id=?", (edit_id,))
                     c.execute("DELETE FROM pumps WHERE project_id=?", (edit_id,))
@@ -194,7 +190,6 @@ def render_project_form(edit_id=None):
                 conn.commit()
                 st.success("Project Saved!")
                 
-                # Cleanup session state after saving
                 for key in ["specs_df", "edit_loaded", "p_type_default", "t_type_default", "edit_project_id"]:
                     if key in st.session_state: del st.session_state[key]
                 st.session_state.page = "home"
@@ -208,7 +203,6 @@ def render_dashboard(project_name):
     conn = sqlite3.connect(DB_FILE)
     pumps_df = pd.read_sql("SELECT * FROM pumps WHERE project_id=?", conn, params=(project_name,))
     
-    # Dynamic Icons
     proj_type = pd.read_sql("SELECT type FROM projects WHERE project_id=?", conn, params=(project_name,)).iloc[0]['type']
     icon_file = "pump_icon.png" if proj_type == "Centrifugal" else "pump_icon2.png"
     icon_b64 = get_base64_image(icon_file)
@@ -228,7 +222,6 @@ init_db()
 
 if "page" not in st.session_state: st.session_state.page = "home"
 
-# Safety Cleanup: If returning to home, wipe any old edit data
 if st.session_state.page == "home":
     for k in ["specs_df", "edit_loaded", "p_type_default", "t_type_default", "edit_project_id"]:
         if k in st.session_state: del st.session_state[k]
@@ -236,7 +229,6 @@ if st.session_state.page == "home":
 if st.session_state.page == "home":
     st.title("🚰 Pump Test Architect")
     
-    # Top Section
     if st.button("➕ Create New Project", type="primary"):
         st.session_state.page = "create"
         st.rerun()
@@ -248,13 +240,11 @@ if st.session_state.page == "home":
     if projects.empty:
         st.info("No projects found. Click 'Create New Project' to get started.")
     else:
-        # Header Row for the list
         col1, col2, col3, col4 = st.columns([4, 1, 1, 1])
         col1.markdown("**Project Name**")
         col2.markdown("**Action**")
         st.markdown("<hr style='margin: 0.5em 0px; border-color: #e0e0e0;'>", unsafe_allow_html=True)
         
-        # Display each project
         for _, row in projects.iterrows():
             col1, col2, col3, col4 = st.columns([4, 1, 1, 1])
             with col1:

@@ -167,7 +167,7 @@ init_db()
 if "page" not in st.session_state: st.session_state.page = "home"
 
 if st.session_state.page == "home":
-    st.title("🚰 Walrus Pump Test Architect")
+    st.title("🚰 Pump Test Architect")
     if st.button("➕ Create New Project"):
         st.session_state.page = "create"
         st.rerun()

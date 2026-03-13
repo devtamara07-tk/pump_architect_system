@@ -6,6 +6,30 @@ import base64
 import time
 import os
 
+# --- COMPACT MODE CSS ---
+def inject_compact_css():
+    """Forces Streamlit to use smaller fonts and tighter spacing, similar to Colab."""
+    st.markdown("""
+        <style>
+            /* Reduce overall font size */
+            html, body, [class*="st-"] {
+                font-size: 14px !important; 
+            }
+            /* Reduce top and bottom padding of the main screen */
+            .block-container {
+                padding-top: 2rem !important;
+                padding-bottom: 2rem !important;
+                max-width: 95% !important; /* Uses more of the screen width */
+            }
+            /* Make Headers smaller */
+            h1 { font-size: 1.8rem !important; padding-bottom: 0.5rem !important;}
+            h2 { font-size: 1.5rem !important; padding-bottom: 0.5rem !important;}
+            h3 { font-size: 1.2rem !important; padding-bottom: 0.2rem !important;}
+            /* Tighten up dividers */
+            hr { margin-top: 0.5em !important; margin-bottom: 0.5em !important; }
+        </style>
+    """, unsafe_allow_html=True)
+
 # --- 1. UTILITY FUNCTIONS ---
 def get_base64_image(image_path):
     """Loads images using an absolute path so Streamlit Cloud always finds them."""

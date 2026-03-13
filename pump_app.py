@@ -131,14 +131,12 @@ def render_project_form(edit_id=None):
     st.write("### 3. Pump Specs")
     st.info("💡 **Remark:** To add a pump, simply type the model name into the **Pump Model** column. The **No.** and **Pump ID** will generate automatically.")
     
-    # --- New Column Order applied here ---
     desired_columns = ["Pump Model", "No.", "Pump ID", "ISO No.", "HP", "kW", "Voltage (V)", "Amp (A)", "Phase", "Hertz", "Insulation"]
     
     if "specs_df" not in st.session_state or st.session_state.specs_df is None:
         df = pd.DataFrame(columns=desired_columns)
         st.session_state.specs_df = df
     else:
-        # Safety catch to ensure columns are ordered correctly even on reload
         if "No." not in st.session_state.specs_df.columns:
             st.session_state.specs_df.insert(1, "No.", None)
         if set(st.session_state.specs_df.columns) == set(desired_columns):
@@ -148,10 +146,13 @@ def render_project_form(edit_id=None):
         st.session_state.specs_df, 
         num_rows="dynamic", 
         use_container_width=True,
-        hide_index=True, # Streamlit index hidden completely
+        hide_index=True, 
         column_config=get_column_config(),
         key="create_table"
     )
+    
+    # --- BUG FIX: Force clean the broken Streamlit index instantly ---
+    edited_df = edited_df.reset_index(drop=True)
     
     # Auto-generate IDs and No.
     new_ids = []
@@ -169,7 +170,6 @@ def render_project_form(edit_id=None):
     current_ids = [str(x) if pd.notna(x) else None for x in edited_df["Pump ID"]]
     current_nos = [str(x) if pd.notna(x) else None for x in edited_df["No."]]
 
-    # If changes are detected, apply them and refresh
     if current_ids != new_ids or current_nos != new_nos:
         edited_df["Pump ID"] = new_ids
         edited_df["No."] = new_nos
@@ -198,7 +198,6 @@ def render_project_form(edit_id=None):
                 for _, row in edited_df.dropna(subset=["Pump ID"]).iterrows():
                     p_id = row["Pump ID"]
                     tank = next((t for t, p_list in st.session_state.tanks.items() if p_id in p_list), "Unassigned")
-                    # Notice we don't save the "No." column, preventing any DB errors!
                     c.execute("INSERT INTO pumps VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (p_id, project_name, row["Pump Model"], row["ISO No."], row["HP"], row["kW"], row["Voltage (V)"], row["Amp (A)"], row["Phase"], row["Hertz"], row["Insulation"], tank))
                 conn.commit()
                 st.success("Project Saved!")

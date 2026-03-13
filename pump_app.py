@@ -78,24 +78,23 @@ def render_create_project():
     
     st.write("### 3. Pump Specs")
     
-    # --- The requested remark for the users ---
-    st.info("💡 **Remark:** Please add a row (Index) and key in the **Pump Model**. The **Pump ID** will be generated automatically.")
+    # --- Remark Banner ---
+    st.info("💡 **Remark:** Please add a row (using the Index column on the left) and key in the **Pump Model**. The **Pump ID** will be generated automatically.")
     
-    # --- New Column Order: Model first, then ID ---
     desired_columns = ["Pump Model", "Pump ID", "ISO No.", "HP", "kW", "Voltage (V)", "Amp (A)", "Phase", "Hertz", "Insulation"]
     
     if "specs_df" not in st.session_state:
         st.session_state.specs_df = pd.DataFrame(columns=desired_columns)
     else:
-        # Safety check: if the app remembers the old column order, this forces the new one
         if set(st.session_state.specs_df.columns) == set(desired_columns):
             st.session_state.specs_df = st.session_state.specs_df[desired_columns]
     
+    # --- ONLY ONE TABLE RENDERED HERE ---
     edited_df = st.data_editor(
         st.session_state.specs_df, 
         num_rows="dynamic", 
         use_container_width=True,
-        hide_index=False, # --- Index is now unhidden ---
+        hide_index=False, # Explicitly forces the index to show
         column_config=get_column_config(),
         key="create_table"
     )

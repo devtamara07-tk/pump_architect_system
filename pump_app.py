@@ -81,31 +81,30 @@ def render_create_project():
     st.divider()
     st.write("### 3. Pump Specs")
     if "specs_df" not in st.session_state:
-        st.session_state.specs_df = pd.DataFrame(columns=["Pump ID", "Pump Model", "ISO No.", "HP", "kW", "Voltage (V)", "Amp (A)", "Phase", "Hertz", "Insulation"])
+        st.session_state.specs_df = pd.DataFrame(columns=["Pump Model", "ISO No.", "HP", "kW", "Voltage (V)", "Amp (A)", "Phase", "Hertz", "Insulation"])
     edited_df = st.data_editor(
-        st.session_state.specs_df, 
-        num_rows="dynamic", 
+        st.session_state.specs_df,
+        num_rows="dynamic",
         use_container_width=True,
-        hide_index=True, 
-        column_config=get_column_config(),
+        hide_index=True,
+        column_config={k: v for k, v in get_column_config().items() if k != "Pump ID"},
         key="create_pump_table"
     )
-    new_ids = []
+    # Generate Pump ID after user inputs Pump Model
+    pump_ids = []
     counter = 1
     for _, row in edited_df.iterrows():
         model = row.get("Pump Model")
         if pd.notna(model) and str(model).strip() != "":
-            new_ids.append(f"P-{str(counter).zfill(2)}")
+            pump_ids.append(f"P-{str(counter).zfill(2)}")
             counter += 1
         else:
-            new_ids.append(None)
-    current_ids = [str(x) if pd.notna(x) else None for x in edited_df["Pump ID"]]
-    if current_ids != new_ids:
-        edited_df["Pump ID"] = new_ids
-        st.session_state.specs_df = edited_df
-        if "create_pump_table" in st.session_state:
-            del st.session_state["create_pump_table"]
-        st.rerun()
+            pump_ids.append(None)
+    # Add Pump ID column for display only
+    display_df = edited_df.copy()
+    display_df.insert(0, "Pump ID", pump_ids)
+    st.dataframe(display_df, use_container_width=True, hide_index=True)
+    st.session_state.specs_df = edited_df
     st.divider()
     st.write("### 4. Installation Layout")
     valid_pump_ids = edited_df["Pump ID"].dropna().tolist()

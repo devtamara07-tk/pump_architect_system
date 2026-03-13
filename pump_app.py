@@ -500,6 +500,8 @@ if st.session_state.page == "home":
                                     conn.close()
                                     st.rerun()
     # Removed render_create_project() from main page
+elif st.session_state.page == "create":
+    render_create_project()
 elif st.session_state.page == "modify":
     render_modify_project(st.session_state.selected_project)
 elif st.session_state.page == "test_config":

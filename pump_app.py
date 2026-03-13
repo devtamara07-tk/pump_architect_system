@@ -51,8 +51,8 @@ def get_projects():
 
 def get_column_config():
     return {
-        "Pump ID": st.column_config.TextColumn("Pump ID", disabled=True, width="small"),
         "Pump Model": st.column_config.TextColumn("Pump Model", width="medium"),
+        "Pump ID": st.column_config.TextColumn("Pump ID", disabled=True, width="small"),
         "ISO No.": st.column_config.TextColumn("ISO No.", width="medium"),
         "HP": st.column_config.NumberColumn("HP", width="small"),
         "kW": st.column_config.NumberColumn("kW", width="small"),
@@ -77,14 +77,25 @@ def render_create_project():
     st.divider()
     
     st.write("### 3. Pump Specs")
+    
+    # --- The requested remark for the users ---
+    st.info("💡 **Remark:** Please add a row (Index) and key in the **Pump Model**. The **Pump ID** will be generated automatically.")
+    
+    # --- New Column Order: Model first, then ID ---
+    desired_columns = ["Pump Model", "Pump ID", "ISO No.", "HP", "kW", "Voltage (V)", "Amp (A)", "Phase", "Hertz", "Insulation"]
+    
     if "specs_df" not in st.session_state:
-        st.session_state.specs_df = pd.DataFrame(columns=["Pump ID", "Pump Model", "ISO No.", "HP", "kW", "Voltage (V)", "Amp (A)", "Phase", "Hertz", "Insulation"])
+        st.session_state.specs_df = pd.DataFrame(columns=desired_columns)
+    else:
+        # Safety check: if the app remembers the old column order, this forces the new one
+        if set(st.session_state.specs_df.columns) == set(desired_columns):
+            st.session_state.specs_df = st.session_state.specs_df[desired_columns]
     
     edited_df = st.data_editor(
         st.session_state.specs_df, 
         num_rows="dynamic", 
         use_container_width=True,
-        hide_index=True, 
+        hide_index=False, # --- Index is now unhidden ---
         column_config=get_column_config(),
         key="create_table"
     )

@@ -6,33 +6,39 @@ import base64
 import time
 import os
 
-# --- COMPACT MODE CSS ---
+# --- COMPACT MODE CSS (COLAB STYLE) ---
 def inject_compact_css():
-    """Forces Streamlit to use smaller fonts and tighter spacing, similar to Colab."""
+    """Forces Streamlit to use ultra-tight spacing and smaller fonts like Colab."""
     st.markdown("""
         <style>
-            /* Reduce overall font size */
-            html, body, [class*="st-"] {
-                font-size: 14px !important; 
-            }
-            /* Reduce top and bottom padding of the main screen */
+            /* Base font size */
+            html, body, [class*="st-"] { font-size: 14px !important; }
+            
+            /* Squeeze the main container padding */
             .block-container {
-                padding-top: 2rem !important;
-                padding-bottom: 2rem !important;
-                max-width: 95% !important; /* Uses more of the screen width */
+                padding-top: 1.5rem !important;
+                padding-bottom: 1.5rem !important;
+                max-width: 98% !important; /* Use almost full screen width */
             }
-            /* Make Headers smaller */
-            h1 { font-size: 1.8rem !important; padding-bottom: 0.5rem !important;}
-            h2 { font-size: 1.5rem !important; padding-bottom: 0.5rem !important;}
-            h3 { font-size: 1.2rem !important; padding-bottom: 0.2rem !important;}
+            
+            /* Shrink headers and eliminate huge gaps below them */
+            h1 { font-size: 1.6rem !important; padding-bottom: 0.2rem !important; margin-bottom: 0 !important;}
+            h2 { font-size: 1.4rem !important; padding-bottom: 0.2rem !important; margin-bottom: 0 !important;}
+            h3 { font-size: 1.1rem !important; padding-bottom: 0.1rem !important; margin-bottom: 0 !important;}
+            
+            /* Squeeze gaps between standard elements */
+            .st-emotion-cache-1wivap2 { gap: 0.5rem !important; }
+            
             /* Tighten up dividers */
             hr { margin-top: 0.5em !important; margin-bottom: 0.5em !important; }
+            
+            /* Make alert boxes (Remarks) more compact */
+            .stAlert { padding: 0.5rem !important; }
         </style>
     """, unsafe_allow_html=True)
 
 # --- 1. UTILITY FUNCTIONS ---
 def get_base64_image(image_path):
-    """Loads images using an absolute path so Streamlit Cloud always finds them."""
     try:
         script_dir = os.path.dirname(os.path.abspath(__file__))
         abs_file_path = os.path.join(script_dir, image_path)
@@ -76,7 +82,6 @@ def get_projects():
     return df
 
 def delete_project(project_id):
-    """Deletes a project and its associated pumps from the database."""
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute("DELETE FROM projects WHERE project_id=?", (project_id,))
@@ -142,18 +147,21 @@ def render_project_form(edit_id=None):
         st.session_state.edit_loaded = True
     conn.close()
 
-    col1, col2 = st.columns(2)
+    # --- COLAB STYLE: Tighter Columns & Horizontal Radio ---
+    col1, col2 = st.columns([1.5, 2.5]) # Custom proportions so they sit nicely together
     with col1:
-        p_type = st.radio("1. Pump Type", ["Centrifugal", "Submersible"], index=0 if st.session_state.get("p_type_default", "Centrifugal") == "Centrifugal" else 1)
+        p_type = st.radio("1. Pump Type", ["Centrifugal", "Submersible"], 
+                          index=0 if st.session_state.get("p_type_default", "Centrifugal") == "Centrifugal" else 1,
+                          horizontal=True) # Forces left-to-right layout
     with col2:
         t_type = st.text_input("2. Test Type", value=st.session_state.get("t_type_default", ""), placeholder="e.g., Endurance Test")
     
     project_name = f"{p_type}_{t_type}" if t_type else p_type
-    st.subheader(f"Project Name: **{project_name}**")
+    st.markdown(f"**Project Name:** `{project_name}`")
     st.divider()
     
     st.write("### 3. Pump Specs")
-    st.info("💡 **Remark:** To add a pump, simply type the model name into the **Pump Model** column. The **Pump ID** will generate automatically.")
+    st.info("💡 **Remark:** To add a pump, simply type the model name into the **Pump Model** column. Select a row and press `Delete` to remove it.")
     
     desired_columns = ["Pump Model", "Pump ID", "ISO No.", "HP", "kW", "Voltage (V)", "Amp (A)", "Phase", "Hertz", "Insulation"]
     
@@ -161,7 +169,6 @@ def render_project_form(edit_id=None):
         df = pd.DataFrame(columns=desired_columns)
         st.session_state.specs_df = df
     else:
-        # Safety check: if the app remembers the "No." column, this forces it out
         if "No." in st.session_state.specs_df.columns:
             st.session_state.specs_df = st.session_state.specs_df.drop(columns=["No."])
         if set(st.session_state.specs_df.columns) == set(desired_columns):
@@ -176,10 +183,8 @@ def render_project_form(edit_id=None):
         key="create_table"
     )
     
-    # --- The vacuum cleaner command ---
     edited_df = edited_df.reset_index(drop=True)
     
-    # Auto-generate IDs
     new_ids = []
     counter = 1
     for _, row in edited_df.iterrows():
@@ -191,7 +196,6 @@ def render_project_form(edit_id=None):
             
     current_ids = [str(x) if pd.notna(x) else None for x in edited_df["Pump ID"]]
 
-    # If ID changes are detected, apply them and refresh
     if current_ids != new_ids:
         edited_df["Pump ID"] = new_ids
         st.session_state.specs_df = edited_df
@@ -206,61 +210,71 @@ def render_project_form(edit_id=None):
         if "tanks" not in st.session_state: 
             st.session_state.tanks = {"Water Tank 1": []}
             
-        if st.button("➕ Add Water Tank", use_container_width=True):
-            next_num = len(st.session_state.tanks) + 1
-            new_tank_name = f"Water Tank {next_num}"
-            while new_tank_name in st.session_state.tanks:
-                next_num += 1
+        col_btn, _ = st.columns([1, 4]) # Keep the add button small and compact on the left
+        with col_btn:
+            if st.button("➕ Add Water Tank", use_container_width=True):
+                next_num = len(st.session_state.tanks) + 1
                 new_tank_name = f"Water Tank {next_num}"
-            st.session_state.tanks[new_tank_name] = []
-            st.rerun()
+                while new_tank_name in st.session_state.tanks:
+                    next_num += 1
+                    new_tank_name = f"Water Tank {next_num}"
+                st.session_state.tanks[new_tank_name] = []
+                st.rerun()
                 
         for tank in list(st.session_state.tanks.keys()):
             widget_key = f"select_{tank}"
             if widget_key in st.session_state:
                 st.session_state.tanks[tank] = [p for p in st.session_state[widget_key] if p in valid_pumps]
                 
-        for tank in list(st.session_state.tanks.keys()):
-            with st.container(border=True):
-                st.write(f"**{tank}**")
-                
-                assigned_to_others = []
-                for other_tank, p_list in st.session_state.tanks.items():
-                    if other_tank != tank:
-                        assigned_to_others.extend(p_list)
-                
-                available_pumps = [p for p in valid_pumps if p not in assigned_to_others]
-                
-                st.multiselect(
-                    f"Assign to {tank}:", 
-                    options=available_pumps, 
-                    default=st.session_state.tanks[tank], 
-                    key=f"select_{tank}"
-                )
+        # --- COLAB STYLE GRID: Arrange tanks side-by-side (3 per row) ---
+        tank_names = list(st.session_state.tanks.keys())
+        cols = st.columns(3) # Creates a 3-column grid
+        
+        for i, tank in enumerate(tank_names):
+            with cols[i % 3]: # Loops through columns 0, 1, 2, 0, 1, 2
+                with st.container(border=True):
+                    st.write(f"**{tank}**")
+                    
+                    assigned_to_others = []
+                    for other_tank, p_list in st.session_state.tanks.items():
+                        if other_tank != tank:
+                            assigned_to_others.extend(p_list)
+                    
+                    available_pumps = [p for p in valid_pumps if p not in assigned_to_others]
+                    
+                    st.multiselect(
+                        "Assign Pumps:", 
+                        options=available_pumps, 
+                        default=st.session_state.tanks[tank], 
+                        key=f"select_{tank}",
+                        label_visibility="collapsed" # Hides duplicate labels for an even tighter look
+                    )
         
         st.write("") 
-        if st.button("💾 Save Project", type="primary"):
-            conn = sqlite3.connect(DB_FILE)
-            c = conn.cursor()
-            try:
-                if edit_id:
-                    c.execute("DELETE FROM projects WHERE project_id=?", (edit_id,))
-                    c.execute("DELETE FROM pumps WHERE project_id=?", (edit_id,))
+        col_save, _ = st.columns([1, 4])
+        with col_save:
+            if st.button("💾 Save Project", type="primary", use_container_width=True):
+                conn = sqlite3.connect(DB_FILE)
+                c = conn.cursor()
+                try:
+                    if edit_id:
+                        c.execute("DELETE FROM projects WHERE project_id=?", (edit_id,))
+                        c.execute("DELETE FROM pumps WHERE project_id=?", (edit_id,))
+                        
+                    c.execute("INSERT INTO projects VALUES (?,?,?,?)", (project_name, p_type, t_type, datetime.datetime.now()))
+                    for _, row in edited_df.dropna(subset=["Pump ID"]).iterrows():
+                        p_id = row["Pump ID"]
+                        tank = next((t for t, p_list in st.session_state.tanks.items() if p_id in p_list), "Unassigned")
+                        c.execute("INSERT INTO pumps VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (p_id, project_name, row["Pump Model"], row["ISO No."], row["HP"], row["kW"], row["Voltage (V)"], row["Amp (A)"], row["Phase"], row["Hertz"], row["Insulation"], tank))
+                    conn.commit()
+                    st.success("Project Saved!")
                     
-                c.execute("INSERT INTO projects VALUES (?,?,?,?)", (project_name, p_type, t_type, datetime.datetime.now()))
-                for _, row in edited_df.dropna(subset=["Pump ID"]).iterrows():
-                    p_id = row["Pump ID"]
-                    tank = next((t for t, p_list in st.session_state.tanks.items() if p_id in p_list), "Unassigned")
-                    c.execute("INSERT INTO pumps VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (p_id, project_name, row["Pump Model"], row["ISO No."], row["HP"], row["kW"], row["Voltage (V)"], row["Amp (A)"], row["Phase"], row["Hertz"], row["Insulation"], tank))
-                conn.commit()
-                st.success("Project Saved!")
-                
-                for key in ["specs_df", "edit_loaded", "p_type_default", "t_type_default", "edit_project_id", "tanks"]:
-                    if key in st.session_state: del st.session_state[key]
-                st.session_state.page = "home"
-                st.rerun()
-            except Exception as e: st.error(f"Error: {e}")
-            finally: conn.close()
+                    for key in ["specs_df", "edit_loaded", "p_type_default", "t_type_default", "edit_project_id", "tanks"]:
+                        if key in st.session_state: del st.session_state[key]
+                    st.session_state.page = "home"
+                    st.rerun()
+                except Exception as e: st.error(f"Error: {e}")
+                finally: conn.close()
 
 def render_dashboard(project_name):
     st.button("⬅️ Back", on_click=lambda: st.session_state.update(page="home"))
@@ -283,6 +297,7 @@ def render_dashboard(project_name):
 
 # --- MAIN APP ---
 st.set_page_config(page_title="Pump Test Architect", layout="wide")
+inject_compact_css() # Apply the new ultra-compact CSS
 init_db()
 
 if "page" not in st.session_state: st.session_state.page = "home"
@@ -294,12 +309,14 @@ if st.session_state.page == "home":
 if st.session_state.page == "home":
     st.title("🚰 Pump Test Architect")
     
-    if st.button("➕ Create New Project", type="primary"):
-        st.session_state.page = "create"
-        st.rerun()
+    col_new, _ = st.columns([1, 4])
+    with col_new:
+        if st.button("➕ Create New Project", type="primary", use_container_width=True):
+            st.session_state.page = "create"
+            st.rerun()
     
     st.divider()
-    st.subheader("Current Project List")
+    st.write("### Current Project List")
     projects = get_projects()
     
     if projects.empty:
@@ -308,7 +325,7 @@ if st.session_state.page == "home":
         col1, col2, col3, col4 = st.columns([4, 1, 1, 1])
         col1.markdown("**Project Name**")
         col2.markdown("**Action**")
-        st.markdown("<hr style='margin: 0.5em 0px; border-color: #e0e0e0;'>", unsafe_allow_html=True)
+        st.markdown("<hr style='margin: 0.2em 0px; border-color: #e0e0e0;'>", unsafe_allow_html=True)
         
         for _, row in projects.iterrows():
             col1, col2, col3, col4 = st.columns([4, 1, 1, 1])

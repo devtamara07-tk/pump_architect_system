@@ -66,6 +66,11 @@ def get_column_config():
 # --- 3. UI WIZARD: CREATE PROJECT ---
 def render_create_project():
     st.header("🛠️ Create a New Project")
+    if st.button("⬅️ Go Back to Main Page", key="create_go_back"):
+        if "specs_df" in st.session_state: del st.session_state.specs_df
+        if "tanks" in st.session_state: del st.session_state.tanks
+        st.session_state.page = "home"
+        st.rerun()
     col1, col2 = st.columns(2)
     with col1:
         p_type = st.radio("1. Pump Type", ["Centrifugal", "Submersible"])

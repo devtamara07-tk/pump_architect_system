@@ -3,353 +3,201 @@ import pandas as pd
 import sqlite3
 import datetime
 import base64
-import time
 import os
 
-# --- COMPACT MODE CSS (COLAB STYLE) ---
-def inject_compact_css():
-    """Forces Streamlit to use ultra-tight spacing and smaller fonts like Colab."""
+# --- INDUSTRIAL DARK UI CSS ---
+def inject_industrial_css():
     st.markdown("""
         <style>
-            /* Base font size */
-            html, body, [class*="st-"] { font-size: 14px !important; }
+            .main { background-color: #121417; color: #E0E0E0; }
+            [data-testid="stHeader"] { background: rgba(0,0,0,0); }
             
-            /* Squeeze the main container padding */
-            .block-container {
-                padding-top: 1.5rem !important;
-                padding-bottom: 1.5rem !important;
-                max-width: 98% !important; /* Use almost full screen width */
+            /* Hero Section */
+            .hero-bg {
+                background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), 
+                            url('https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?q=80&w=2070&auto=format&fit=crop');
+                background-size: cover; background-position: center;
+                padding: 40px; border-radius: 15px; text-align: center;
+                margin-bottom: 25px; border: 1px solid #333;
             }
             
-            /* Shrink headers and eliminate huge gaps below them */
-            h1 { font-size: 1.6rem !important; padding-bottom: 0.2rem !important; margin-bottom: 0 !important;}
-            h2 { font-size: 1.4rem !important; padding-bottom: 0.2rem !important; margin-bottom: 0 !important;}
-            h3 { font-size: 1.1rem !important; padding-bottom: 0.1rem !important; margin-bottom: 0 !important;}
+            /* Table Styling */
+            .table-title { color: white !important; font-size: 1.3rem; margin-bottom: 15px; font-weight: bold; }
+            .col-header { color: #888; font-size: 12px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;}
+            .white-text { color: white !important; font-size: 14px; }
             
-            /* Squeeze gaps between standard elements */
-            .st-emotion-cache-1wivap2 { gap: 0.5rem !important; }
+            /* Status Pills */
+            .status-pill {
+                padding: 4px 0px; border-radius: 4px; font-size: 12px;
+                font-weight: bold; text-align: center; color: white;
+                width: 100%; display: inline-block;
+            }
+            .bg-running { background-color: #28a745; }
+            .bg-stopped { background-color: #dc3545; }
+            .bg-standby { background-color: #007bff; }
+            .bg-completed { background-color: #6c757d; }
+
+            /* Action Buttons CSS Hack */
+            div[data-testid="stButton"] button:has(p:contains("Open")) { background-color: #0d6efd; color: white; border-color: #0d6efd; min-height: 30px; height: 30px; padding: 0 10px; }
+            div[data-testid="stButton"] button:has(p:contains("Modify")) { background-color: #ffc107; color: black; border-color: #ffc107; min-height: 30px; height: 30px; padding: 0 10px; }
+            div[data-testid="stButton"] button:has(p:contains("Delete")) { background-color: #dc3545; color: white; border-color: #dc3545; min-height: 30px; height: 30px; padding: 0 10px; }
             
-            /* Tighten up dividers */
-            hr { margin-top: 0.5em !important; margin-bottom: 0.5em !important; }
+            div[data-testid="stButton"] button:has(p:contains("Open")):hover { background-color: #0b5ed7; }
+            div[data-testid="stButton"] button:has(p:contains("Modify")):hover { background-color: #ffca2c; }
+            div[data-testid="stButton"] button:has(p:contains("Delete")):hover { background-color: #bb2d3b; }
             
-            /* Make alert boxes (Remarks) more compact */
-            .stAlert { padding: 0.5rem !important; }
+            /* Form overrides */
+            h2 { color: #3498DB !important; font-size: 1.4rem !important; }
+            .stDataEditor { background-color: #1C1F24 !important; }
         </style>
     """, unsafe_allow_html=True)
 
-# --- 1. UTILITY FUNCTIONS ---
-def get_base64_image(image_path):
-    try:
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        abs_file_path = os.path.join(script_dir, image_path)
-        with open(abs_file_path, "rb") as img_file:
-            return base64.b64encode(img_file.read()).decode()
-    except Exception as e:
-        return ""
-
-# --- 2. DATABASE SETUP ---
+# --- DATABASE SETUP ---
 DB_FILE = "architect_system.db"
-
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS projects 
-                 (project_id TEXT PRIMARY KEY, type TEXT, test_type TEXT, created_at DATETIME)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS pumps 
-                 (pump_id TEXT, project_id TEXT, model TEXT, iso_no TEXT, hp REAL, 
-                  kw REAL, voltage TEXT, amp TEXT, phase INTEGER, hertz TEXT, insulation TEXT, 
-                  tank_name TEXT, PRIMARY KEY (pump_id, project_id))''')
-    c.execute('''CREATE TABLE IF NOT EXISTS status_logs 
-                 (log_id INTEGER PRIMARY KEY AUTOINCREMENT, pump_id TEXT, project_id TEXT, 
-                  status TEXT, start_ts DATETIME, end_ts DATETIME)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS test_targets 
-                 (project_id TEXT PRIMARY KEY, run_type TEXT, test_category TEXT, 
-                  duration REAL, duration_unit TEXT)''')              
-    c.execute('''CREATE TABLE IF NOT EXISTS sensors 
-                 (sensor_id INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT, 
-                  param_type TEXT, name TEXT, location TEXT, hardware TEXT)''')              
-    c.execute('''CREATE TABLE IF NOT EXISTS hardware_setup 
-                 (setup_id INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT, 
-                  sensor_id INTEGER, channel TEXT, record_method TEXT, 
-                  allow_ai BOOLEAN, allow_manual BOOLEAN)''')
-    conn.commit()
-    conn.close()
+    c.execute('CREATE TABLE IF NOT EXISTS projects (project_id TEXT PRIMARY KEY, type TEXT, test_type TEXT, created_at DATETIME)')
+    c.execute('CREATE TABLE IF NOT EXISTS pumps (pump_id TEXT, project_id TEXT, model TEXT, iso_no TEXT, hp REAL, kw REAL, voltage TEXT, amp TEXT, phase INTEGER, hertz TEXT, insulation TEXT, tank_name TEXT, PRIMARY KEY (pump_id, project_id))')
+    conn.commit(); conn.close()
 
-def get_projects():
-    conn = sqlite3.connect(DB_FILE)
-    df = pd.read_sql("SELECT * FROM projects", conn)
-    conn.close()
-    return df
-
-def delete_project(project_id):
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("DELETE FROM projects WHERE project_id=?", (project_id,))
-    c.execute("DELETE FROM pumps WHERE project_id=?", (project_id,))
-    conn.commit()
-    conn.close()
-
+# --- STEP 3 & 4 LOGIC (Create/Modify Form) ---
 def get_column_config():
     return {
         "Pump Model": st.column_config.TextColumn("Pump Model", width="medium"),
         "Pump ID": st.column_config.TextColumn("Pump ID", disabled=True, width="small"),
-        "ISO No.": st.column_config.TextColumn("ISO No.", width="medium"),
-        "HP": st.column_config.NumberColumn("HP", width="small"),
-        "kW": st.column_config.NumberColumn("kW", width="small"),
-        "Voltage (V)": st.column_config.TextColumn("Voltage (V)", width="small"),
-        "Amp (A)": st.column_config.TextColumn("Amp (A)", width="small"),
-        "Phase": st.column_config.NumberColumn("Phase", width="small"),
         "Hertz": st.column_config.SelectboxColumn("Hertz", options=["50", "60"], width="small"),
-        "Insulation": st.column_config.TextColumn("Insulation", width="small")
     }
 
-# --- 3. PAGE ROUTING & UI ---
 def render_project_form(edit_id=None):
-    if st.button("⬅️ Back to Main Page"):
-        for key in ["specs_df", "edit_loaded", "p_type_default", "t_type_default", "edit_project_id", "tanks"]:
+    if st.button("⬅️ Back to Main"):
+        for key in ["specs_df", "edit_loaded", "p_type_default", "t_type_default", "tanks"]:
             if key in st.session_state: del st.session_state[key]
-        st.session_state.page = "home"
-        st.rerun()
-        
-    st.header(f"🛠️ {'Modify Project: ' + edit_id if edit_id else 'Create a New Project'}")
-    
-    conn = sqlite3.connect(DB_FILE)
+        st.session_state.page = "home"; st.rerun()
+
+    st.header(f"🛠️ {'Modify' if edit_id else 'Create New'} Project")
+
     if edit_id and "edit_loaded" not in st.session_state:
-        proj_data = pd.read_sql("SELECT * FROM projects WHERE project_id=?", conn, params=(edit_id,))
-        pump_data = pd.read_sql("SELECT * FROM pumps WHERE project_id=?", conn, params=(edit_id,))
-        
-        st.session_state.p_type_default = proj_data.iloc[0]['type'] if not proj_data.empty else "Centrifugal"
-        st.session_state.t_type_default = proj_data.iloc[0]['test_type'] if not proj_data.empty else ""
-        
-        df = pd.DataFrame()
-        if not pump_data.empty:
-            df["Pump Model"] = pump_data["model"]
-            df["Pump ID"] = pump_data["pump_id"]
-            df["ISO No."] = pump_data["iso_no"]
-            df["HP"] = pump_data["hp"]
-            df["kW"] = pump_data["kw"]
-            df["Voltage (V)"] = pump_data["voltage"]
-            df["Amp (A)"] = pump_data["amp"]
-            df["Phase"] = pump_data["phase"]
-            df["Hertz"] = pump_data["hertz"]
-            df["Insulation"] = pump_data["insulation"]
-        
-        st.session_state.specs_df = df
-        
-        st.session_state.tanks = {"Water Tank 1": []}
-        if not pump_data.empty:
-            for tank_name in pump_data['tank_name'].unique():
-                if tank_name != "Unassigned":
-                    if tank_name not in st.session_state.tanks:
-                        st.session_state.tanks[tank_name] = []
-                    st.session_state.tanks[tank_name] = pump_data[pump_data['tank_name'] == tank_name]['pump_id'].tolist()
-        
-        st.session_state.edit_loaded = True
-    conn.close()
+        conn = sqlite3.connect(DB_FILE)
+        pumps = pd.read_sql("SELECT * FROM pumps WHERE project_id=?", conn, params=(edit_id,))
+        proj = pd.read_sql("SELECT * FROM projects WHERE project_id=?", conn, params=(edit_id,))
+        st.session_state.p_type_default = proj.iloc[0]['type']
+        st.session_state.t_type_default = proj.iloc[0]['test_type']
+        st.session_state.specs_df = pumps.rename(columns={'model': 'Pump Model', 'pump_id': 'Pump ID'})
+        st.session_state.tanks = {t: pumps[pumps['tank_name']==t]['pump_id'].tolist() for t in pumps['tank_name'].unique() if t != "Unassigned"}
+        st.session_state.edit_loaded = True; conn.close()
 
-    # --- COLAB STYLE: Tighter Columns & Horizontal Radio ---
-    col1, col2 = st.columns([1.5, 2.5]) # Custom proportions so they sit nicely together
-    with col1:
-        p_type = st.radio("1. Pump Type", ["Centrifugal", "Submersible"], 
-                          index=0 if st.session_state.get("p_type_default", "Centrifugal") == "Centrifugal" else 1,
-                          horizontal=True) # Forces left-to-right layout
-    with col2:
-        t_type = st.text_input("2. Test Type", value=st.session_state.get("t_type_default", ""), placeholder="e.g., Endurance Test")
-    
+    c1, c2 = st.columns([1, 2])
+    p_type = c1.radio("1. Pump Type", ["Centrifugal", "Submersible"], horizontal=True, index=0 if st.session_state.get("p_type_default") != "Submersible" else 1)
+    t_type = c2.text_input("2. Test Type", value=st.session_state.get("t_type_default", ""))
     project_name = f"{p_type}_{t_type}" if t_type else p_type
-    st.markdown(f"**Project Name:** `{project_name}`")
-    st.divider()
     
-    st.write("### 3. Pump Specs")
-    st.info("💡 **Remark:** To add a pump, simply type the model name into the **Pump Model** column. Select a row and press `Delete` to remove it.")
+    st.subheader("3. Pump Specification")
+    if "specs_df" not in st.session_state: st.session_state.specs_df = pd.DataFrame(columns=["Pump Model", "Pump ID", "ISO No.", "HP", "kW", "Voltage (V)", "Amp (A)", "Phase", "Hertz", "Insulation"])
     
-    desired_columns = ["Pump Model", "Pump ID", "ISO No.", "HP", "kW", "Voltage (V)", "Amp (A)", "Phase", "Hertz", "Insulation"]
+    edited_df = st.data_editor(st.session_state.specs_df, num_rows="dynamic", use_container_width=True, hide_index=True, column_config=get_column_config(), key="editor")
     
-    if "specs_df" not in st.session_state or st.session_state.specs_df is None:
-        df = pd.DataFrame(columns=desired_columns)
-        st.session_state.specs_df = df
-    else:
-        if "No." in st.session_state.specs_df.columns:
-            st.session_state.specs_df = st.session_state.specs_df.drop(columns=["No."])
-        if set(st.session_state.specs_df.columns) == set(desired_columns):
-            st.session_state.specs_df = st.session_state.specs_df[desired_columns]
-    
-    edited_df = st.data_editor(
-        st.session_state.specs_df, 
-        num_rows="dynamic", 
-        use_container_width=True,
-        hide_index=True, 
-        column_config=get_column_config(),
-        key="create_table"
-    )
-    
-    edited_df = edited_df.reset_index(drop=True)
-    
-    new_ids = []
-    counter = 1
-    for _, row in edited_df.iterrows():
-        if pd.notna(row.get("Pump Model")) and str(row.get("Pump Model")).strip() != "":
-            new_ids.append(f"P-{str(counter).zfill(2)}")
-            counter += 1
-        else:
-            new_ids.append(None)
-            
-    current_ids = [str(x) if pd.notna(x) else None for x in edited_df["Pump ID"]]
-
-    if current_ids != new_ids:
-        edited_df["Pump ID"] = new_ids
-        st.session_state.specs_df = edited_df
-        if "create_table" in st.session_state: del st.session_state["create_table"]
-        st.rerun()
+    new_ids = [f"P-{str(i+1).zfill(2)}" if pd.notna(r["Pump Model"]) and str(r["Pump Model"]).strip() else None for i, r in edited_df.iterrows()]
+    if [str(x) if pd.notna(x) else None for x in edited_df["Pump ID"]] != new_ids:
+        edited_df["Pump ID"] = new_ids; st.session_state.specs_df = edited_df; st.rerun()
 
     valid_pumps = edited_df["Pump ID"].dropna().tolist()
     if valid_pumps:
-        st.divider()
-        st.write("### 4. Pump Test Installation Layout")
-        
-        if "tanks" not in st.session_state: 
-            st.session_state.tanks = {"Water Tank 1": []}
+        st.divider(); st.subheader("4. Installation Layout")
+        if "tanks" not in st.session_state: st.session_state.tanks = {"Water Tank 1": []}
+        if st.button("➕ Add Water Tank"): st.session_state.tanks[f"Water Tank {len(st.session_state.tanks)+1}"] = []; st.rerun()
             
-        col_btn, _ = st.columns([1, 4]) # Keep the add button small and compact on the left
-        with col_btn:
-            if st.button("➕ Add Water Tank", use_container_width=True):
-                next_num = len(st.session_state.tanks) + 1
-                new_tank_name = f"Water Tank {next_num}"
-                while new_tank_name in st.session_state.tanks:
-                    next_num += 1
-                    new_tank_name = f"Water Tank {next_num}"
-                st.session_state.tanks[new_tank_name] = []
-                st.rerun()
-                
-        for tank in list(st.session_state.tanks.keys()):
-            widget_key = f"select_{tank}"
-            if widget_key in st.session_state:
-                st.session_state.tanks[tank] = [p for p in st.session_state[widget_key] if p in valid_pumps]
-                
-        # --- COLAB STYLE GRID: Arrange tanks side-by-side (3 per row) ---
-        tank_names = list(st.session_state.tanks.keys())
-        cols = st.columns(3) # Creates a 3-column grid
-        
-        for i, tank in enumerate(tank_names):
-            with cols[i % 3]: # Loops through columns 0, 1, 2, 0, 1, 2
+        cols = st.columns(3)
+        for i, tank in enumerate(list(st.session_state.tanks.keys())):
+            with cols[i % 3]:
                 with st.container(border=True):
-                    st.write(f"**{tank}**")
-                    
-                    assigned_to_others = []
-                    for other_tank, p_list in st.session_state.tanks.items():
-                        if other_tank != tank:
-                            assigned_to_others.extend(p_list)
-                    
-                    available_pumps = [p for p in valid_pumps if p not in assigned_to_others]
-                    
-                    st.multiselect(
-                        "Assign Pumps:", 
-                        options=available_pumps, 
-                        default=st.session_state.tanks[tank], 
-                        key=f"select_{tank}",
-                        label_visibility="collapsed" # Hides duplicate labels for an even tighter look
-                    )
-        
-        st.write("") 
-        col_save, _ = st.columns([1, 4])
-        with col_save:
-            if st.button("💾 Save Project", type="primary", use_container_width=True):
-                conn = sqlite3.connect(DB_FILE)
-                c = conn.cursor()
-                try:
-                    if edit_id:
-                        c.execute("DELETE FROM projects WHERE project_id=?", (edit_id,))
-                        c.execute("DELETE FROM pumps WHERE project_id=?", (edit_id,))
-                        
-                    c.execute("INSERT INTO projects VALUES (?,?,?,?)", (project_name, p_type, t_type, datetime.datetime.now()))
-                    for _, row in edited_df.dropna(subset=["Pump ID"]).iterrows():
-                        p_id = row["Pump ID"]
-                        tank = next((t for t, p_list in st.session_state.tanks.items() if p_id in p_list), "Unassigned")
-                        c.execute("INSERT INTO pumps VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (p_id, project_name, row["Pump Model"], row["ISO No."], row["HP"], row["kW"], row["Voltage (V)"], row["Amp (A)"], row["Phase"], row["Hertz"], row["Insulation"], tank))
-                    conn.commit()
-                    st.success("Project Saved!")
-                    
-                    for key in ["specs_df", "edit_loaded", "p_type_default", "t_type_default", "edit_project_id", "tanks"]:
-                        if key in st.session_state: del st.session_state[key]
-                    st.session_state.page = "home"
-                    st.rerun()
-                except Exception as e: st.error(f"Error: {e}")
-                finally: conn.close()
+                    others = [p for t, p_list in st.session_state.tanks.items() if t != tank for p in p_list]
+                    avail = [p for p in valid_pumps if p not in others]
+                    st.session_state.tanks[tank] = st.multiselect(f"{tank}", avail, default=[p for p in st.session_state.tanks[tank] if p in valid_pumps], key=f"sel_{tank}")
 
-def render_dashboard(project_name):
-    st.button("⬅️ Back", on_click=lambda: st.session_state.update(page="home"))
-    st.header(f"📊 Dashboard: {project_name}")
-    conn = sqlite3.connect(DB_FILE)
-    pumps_df = pd.read_sql("SELECT * FROM pumps WHERE project_id=?", conn, params=(project_name,))
-    
-    proj_type = pd.read_sql("SELECT type FROM projects WHERE project_id=?", conn, params=(project_name,)).iloc[0]['type']
-    icon_file = "pump_icon.png" if proj_type == "Centrifugal" else "pump_icon2.png"
-    icon_b64 = get_base64_image(icon_file)
-
-    for tank in pumps_df['tank_name'].unique():
-        st.subheader(f"🟦 {tank}")
-        tank_pumps = pumps_df[pumps_df['tank_name'] == tank]
-        cols = st.columns(len(tank_pumps))
-        for idx, (_, row) in enumerate(tank_pumps.iterrows()):
-            with cols[idx]:
-                st.markdown(f"<div style='text-align:center; border:2px solid #0085CA; border-radius:10px; padding:10px; background-color:#002F6C; color:white;'><img src='data:image/png;base64,{icon_b64}' width='50'><br><b>{row['pump_id']}</b><br>{row['model']}</div>", unsafe_allow_html=True)
-    conn.close()
+        if st.button("💾 Save Project", type="primary"):
+            conn = sqlite3.connect(DB_FILE); c = conn.cursor()
+            if edit_id: c.execute("DELETE FROM projects WHERE project_id=?", (edit_id,)); c.execute("DELETE FROM pumps WHERE project_id=?", (edit_id,))
+            c.execute("INSERT INTO projects VALUES (?,?,?,?)", (project_name, p_type, t_type, datetime.datetime.now()))
+            for _, row in edited_df.dropna(subset=["Pump ID"]).iterrows():
+                tank = next((t for t, pl in st.session_state.tanks.items() if row["Pump ID"] in pl), "Unassigned")
+                c.execute("INSERT INTO pumps VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (row["Pump ID"], project_name, row["Pump Model"], row["ISO No."], row["HP"], row["kW"], row["Voltage (V)"], row["Amp (A)"], row["Phase"], row["Hertz"], row["Insulation"], tank))
+            conn.commit(); conn.close(); st.session_state.page = "home"; st.rerun()
 
 # --- MAIN APP ---
-st.set_page_config(page_title="Pump Test Architect", layout="wide")
-inject_compact_css() # Apply the new ultra-compact CSS
+st.set_page_config(page_title="Pump Architect", layout="wide")
+inject_industrial_css()
 init_db()
 
 if "page" not in st.session_state: st.session_state.page = "home"
 
 if st.session_state.page == "home":
-    for k in ["specs_df", "edit_loaded", "p_type_default", "t_type_default", "edit_project_id", "tanks"]:
-        if k in st.session_state: del st.session_state[k]
-
-if st.session_state.page == "home":
-    st.title("🚰 Pump Test Architect 1.0")
+    st.markdown('<div class="hero-bg"><h1 style="color:white; letter-spacing:2px;">PUMP ARCHITECT SYSTEM</h1><p style="color:#aaa;">Control Center v2.0</p></div>', unsafe_allow_html=True)
     
-    col_new, _ = st.columns([1, 4])
-    with col_new:
-        if st.button("➕ Create New Project", type="primary", use_container_width=True):
-            st.session_state.page = "create"
+    c_btn, _ = st.columns([1, 5])
+    if c_btn.button("+ Create New Project", type="primary", use_container_width=True): 
+        st.session_state.page = "create"; st.rerun()
+    
+    st.markdown("<div class='table-title'>CURRENT PROJECTS</div>", unsafe_allow_html=True)
+    
+    # Check for delete confirmation state
+    if "confirm_delete" in st.session_state and st.session_state.confirm_delete:
+        del_target = st.session_state.confirm_delete
+        st.error(f"⚠️ Are you sure you want to permanently delete **{del_target}**? This cannot be undone.")
+        warn_c1, warn_c2, _ = st.columns([1, 1, 4])
+        if warn_c1.button("Yes, Delete Project", key="yes_del"):
+            conn = sqlite3.connect(DB_FILE)
+            conn.execute("DELETE FROM projects WHERE project_id=?", (del_target,))
+            conn.execute("DELETE FROM pumps WHERE project_id=?", (del_target,))
+            conn.commit(); conn.close()
+            st.session_state.confirm_delete = None
             st.rerun()
+        if warn_c2.button("Cancel", key="no_del"):
+            st.session_state.confirm_delete = None
+            st.rerun()
+        st.divider()
     
-    st.divider()
-    st.write("### Current Project List")
-    projects = get_projects()
+    # Table Headers
+    h1, h2, h3, h4, h5 = st.columns([0.5, 1.2, 3.5, 1.5, 3])
+    h1.markdown("<div class='col-header'>No.</div>", unsafe_allow_html=True)
+    h2.markdown("<div class='col-header'>Status</div>", unsafe_allow_html=True)
+    h3.markdown("<div class='col-header'>Project Name</div>", unsafe_allow_html=True)
+    h4.markdown("<div class='col-header'>Date</div>", unsafe_allow_html=True)
+    h5.markdown("<div class='col-header'>Actions</div>", unsafe_allow_html=True)
     
-    if projects.empty:
-        st.info("No projects found. Click 'Create New Project' to get started.")
-    else:
-        col1, col2, col3, col4 = st.columns([4, 1, 1, 1])
-        col1.markdown("**Project Name**")
-        col2.markdown("**Action**")
-        st.markdown("<hr style='margin: 0.2em 0px; border-color: #e0e0e0;'>", unsafe_allow_html=True)
+    conn = sqlite3.connect(DB_FILE)
+    projects = conn.execute("SELECT * FROM projects ORDER BY created_at DESC").fetchall()
+    conn.close()
+    
+    for idx, p in enumerate(projects):
+        pid, ptype, ttype, created = p
+        date_str = created.split()[0]
         
-        for _, row in projects.iterrows():
-            col1, col2, col3, col4 = st.columns([4, 1, 1, 1])
-            with col1:
-                st.write(f"📁 **{row['project_id']}**")
-            with col2:
-                if st.button("OPEN", key=f"open_{row['project_id']}", use_container_width=True):
-                    st.session_state.selected_project = row['project_id']
-                    st.session_state.page = "dashboard"
-                    st.rerun()
-            with col3:
-                if st.button("Modify", key=f"mod_{row['project_id']}", use_container_width=True):
-                    st.session_state.edit_project_id = row['project_id']
-                    st.session_state.page = "modify"
-                    st.rerun()
-            with col4:
-                if st.button("Delete", key=f"del_{row['project_id']}", use_container_width=True):
-                    delete_project(row['project_id'])
-                    st.rerun()
-            st.markdown("<hr style='margin: 0.2em 0px; border-color: #f0f0f0;'>", unsafe_allow_html=True)
+        # Determine status pill logically (Mock logic for visual display)
+        if "Endurance" in pid:
+            status_class = "bg-running"
+            status_text = "Running"
+        elif "Fail" in pid:
+            status_class = "bg-stopped"
+            status_text = "Stopped"
+        else:
+            status_class = "bg-standby"
+            status_text = "Standby"
 
-elif st.session_state.page == "create":
-    render_project_form()
-elif st.session_state.page == "modify":
-    render_project_form(edit_id=st.session_state.edit_project_id)
-elif st.session_state.page == "dashboard":
-    render_dashboard(st.session_state.selected_project)
+        with st.container():
+            c1, c2, c3, c4, c5, c6, c7 = st.columns([0.5, 1.2, 3.5, 1.5, 1, 1, 1])
+            
+            c1.markdown(f"<div class='white-text' style='padding-top:5px;'>{idx + 1}</div>", unsafe_allow_html=True)
+            c2.markdown(f'<div class="status-pill {status_class}">{status_text}</div>', unsafe_allow_html=True)
+            c3.markdown(f"<div class='white-text' style='padding-top:5px;'>{pid}</div>", unsafe_allow_html=True)
+            c4.markdown(f"<div class='white-text' style='padding-top:5px;'>{date_str}</div>", unsafe_allow_html=True)
+            
+            if c5.button("Open", key=f"o_{pid}", use_container_width=True): 
+                st.session_state.selected_project = pid; st.session_state.page = "dash"; st.rerun()
+            if c6.button("Modify", key=f"m_{pid}", use_container_width=True): 
+                st.session_state.edit_id = pid; st.session_state.page = "modify"; st.rerun()
+            if c7.button("Delete", key=f"d_{pid}", use_container_width=True): 
+                st.session_state.confirm_delete = pid; st.rerun()
+
+elif st.session_state.page == "create": render_project_form()
+elif st.session_state.page == "modify": render_project_form(edit_id=st.session_state.edit_id)

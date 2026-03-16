@@ -21,9 +21,17 @@ def inject_industrial_css():
                 margin-bottom: 25px; border: 1px solid #333;
             }
             
-            /* Table Styling */
+            /* Table Styling - LARGER WHITE HEADERS */
             .table-title { color: white !important; font-size: 1.3rem; margin-bottom: 15px; font-weight: bold; }
-            .col-header { color: #888; font-size: 12px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;}
+            .col-header { 
+                color: white !important; 
+                font-size: 16px !important; 
+                font-weight: bold; 
+                text-transform: uppercase; 
+                border-bottom: 2px solid #444; 
+                padding-bottom: 8px; 
+                margin-bottom: 10px;
+            }
             .white-text { color: white !important; font-size: 14px; }
             
             /* Status Pills */
@@ -37,14 +45,36 @@ def inject_industrial_css():
             .bg-standby { background-color: #007bff; }
             .bg-completed { background-color: #6c757d; }
 
-            /* Action Buttons CSS Hack */
-            div[data-testid="stButton"] button:has(p:contains("Open")) { background-color: #0d6efd; color: white; border-color: #0d6efd; min-height: 30px; height: 30px; padding: 0 10px; }
-            div[data-testid="stButton"] button:has(p:contains("Modify")) { background-color: #ffc107; color: black; border-color: #ffc107; min-height: 30px; height: 30px; padding: 0 10px; }
-            div[data-testid="stButton"] button:has(p:contains("Delete")) { background-color: #dc3545; color: white; border-color: #dc3545; min-height: 30px; height: 30px; padding: 0 10px; }
-            
-            div[data-testid="stButton"] button:has(p:contains("Open")):hover { background-color: #0b5ed7; }
-            div[data-testid="stButton"] button:has(p:contains("Modify")):hover { background-color: #ffca2c; }
-            div[data-testid="stButton"] button:has(p:contains("Delete")):hover { background-color: #bb2d3b; }
+            /* Action Buttons (Standby Format - Blue & White) */
+            button[aria-label="Open"], 
+            button[aria-label="Modify"], 
+            button[aria-label="Delete"] {
+                background-color: #007bff !important;
+                color: white !important;
+                border: 1px solid #007bff !important;
+                min-height: 30px !important; height: 30px !important; padding: 0 10px !important;
+            }
+            button[aria-label="Open"]:hover, 
+            button[aria-label="Modify"]:hover, 
+            button[aria-label="Delete"]:hover {
+                background-color: #0056b3 !important;
+                border-color: #0056b3 !important;
+                color: white !important;
+            }
+
+            /* Warning Confirmation Buttons (Black Text) */
+            button[aria-label="Yes, Delete Project"],
+            button[aria-label="Cancel"] {
+                background-color: #E0E0E0 !important;
+                color: black !important;
+                border: 1px solid #ccc !important;
+                font-weight: bold !important;
+            }
+            button[aria-label="Yes, Delete Project"]:hover,
+            button[aria-label="Cancel"]:hover {
+                background-color: #C0C0C0 !important;
+                color: black !important;
+            }
             
             /* Form overrides */
             h2 { color: #3498DB !important; font-size: 1.4rem !important; }
@@ -140,21 +170,29 @@ if st.session_state.page == "home":
     
     st.markdown("<div class='table-title'>CURRENT PROJECTS</div>", unsafe_allow_html=True)
     
-    # Check for delete confirmation state
+    # Custom High-Visibility Warning Message
     if "confirm_delete" in st.session_state and st.session_state.confirm_delete:
         del_target = st.session_state.confirm_delete
-        st.error(f"⚠️ Are you sure you want to permanently delete **{del_target}**? This cannot be undone.")
-        warn_c1, warn_c2, _ = st.columns([1, 1, 4])
-        if warn_c1.button("Yes, Delete Project", key="yes_del"):
-            conn = sqlite3.connect(DB_FILE)
-            conn.execute("DELETE FROM projects WHERE project_id=?", (del_target,))
-            conn.execute("DELETE FROM pumps WHERE project_id=?", (del_target,))
-            conn.commit(); conn.close()
-            st.session_state.confirm_delete = None
-            st.rerun()
-        if warn_c2.button("Cancel", key="no_del"):
-            st.session_state.confirm_delete = None
-            st.rerun()
+        st.markdown(f"""
+            <div style="background-color: rgba(220, 53, 69, 0.2); border: 1px solid #dc3545; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
+                <span style="color: white; font-size: 16px; font-weight: bold;">⚠️ Are you sure you want to permanently delete {del_target}?</span>
+                <span style="color: #ccc; font-size: 14px; margin-left: 10px;">This cannot be undone.</span>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        warn_c1, warn_c2, _ = st.columns([1.5, 1.5, 4])
+        with warn_c1:
+            if st.button("Yes, Delete Project", key="yes_del", use_container_width=True):
+                conn = sqlite3.connect(DB_FILE)
+                conn.execute("DELETE FROM projects WHERE project_id=?", (del_target,))
+                conn.execute("DELETE FROM pumps WHERE project_id=?", (del_target,))
+                conn.commit(); conn.close()
+                st.session_state.confirm_delete = None
+                st.rerun()
+        with warn_c2:
+            if st.button("Cancel", key="no_del", use_container_width=True):
+                st.session_state.confirm_delete = None
+                st.rerun()
         st.divider()
     
     # Table Headers
@@ -173,7 +211,6 @@ if st.session_state.page == "home":
         pid, ptype, ttype, created = p
         date_str = created.split()[0]
         
-        # Determine status pill logically (Mock logic for visual display)
         if "Endurance" in pid:
             status_class = "bg-running"
             status_text = "Running"

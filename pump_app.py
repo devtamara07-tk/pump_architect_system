@@ -33,14 +33,19 @@ def inject_industrial_css():
                 margin-bottom: 10px;
             }
             
-            /* 1. Increased Font Size for List */
-            .white-text { color: white !important; font-size: 16px !important; font-weight: 500; }
+            /* 1. Increased Font Size for List & Vertical Alignment */
+            .white-text { 
+                color: white !important; 
+                font-size: 18px !important; 
+                font-weight: 500; 
+                margin-top: 6px; /* Aligns text perfectly with the buttons */
+            }
             
             /* Status Pills */
             .status-pill {
-                padding: 4px 0px; border-radius: 4px; font-size: 12px;
+                padding: 6px 0px; border-radius: 5px; font-size: 14px;
                 font-weight: bold; text-align: center; color: white;
-                width: 100%; display: inline-block;
+                width: 100%; display: inline-block; margin-top: 2px;
             }
             .bg-running { background-color: #28a745; }
             .bg-stopped { background-color: #dc3545; }
@@ -48,17 +53,21 @@ def inject_industrial_css():
             .bg-completed { background-color: #6c757d; }
 
             /* 2. Action Buttons (Styled identical to Status Pills) */
+            div[data-testid="stButton"] button p {
+                font-size: 14px !important;
+                font-weight: 600 !important;
+            }
             button[aria-label="Open"], 
             button[aria-label="Modify"], 
             button[aria-label="Delete"] {
-                border-radius: 4px !important;
-                font-size: 12px !important;
-                font-weight: bold !important;
-                min-height: 26px !important; 
-                height: 26px !important; 
+                border-radius: 5px !important;
+                min-height: 34px !important; 
+                height: 34px !important; 
                 padding: 0 5px !important;
                 border: none !important; /* Removes default border */
             }
+            
+            /* Target specific buttons by aria-label */
             button[aria-label="Open"] { background-color: #0d6efd !important; color: white !important; }
             button[aria-label="Modify"] { background-color: #ffc107 !important; color: black !important; }
             button[aria-label="Delete"] { background-color: #dc3545 !important; color: white !important; }
@@ -68,17 +77,19 @@ def inject_industrial_css():
             button[aria-label="Delete"]:hover { background-color: #bb2d3b !important; color: white !important; }
 
             /* 3. Warning Confirmation Buttons (Black Text) */
+            button[aria-label="Yes, Delete Project"] p,
+            button[aria-label="Cancel"] p {
+                color: black !important;
+                font-weight: bold !important;
+            }
             button[aria-label="Yes, Delete Project"],
             button[aria-label="Cancel"] {
                 background-color: #E0E0E0 !important;
-                color: black !important;
                 border: 1px solid #ccc !important;
-                font-weight: bold !important;
             }
             button[aria-label="Yes, Delete Project"]:hover,
             button[aria-label="Cancel"]:hover {
                 background-color: #C0C0C0 !important;
-                color: black !important;
             }
             
             /* Form overrides */
@@ -200,8 +211,8 @@ if st.session_state.page == "home":
                 st.rerun()
         st.divider()
     
-    # Table Headers
-    h1, h2, h3, h4, h5 = st.columns([0.5, 1.2, 3.5, 1.5, 3])
+    # Table Headers - Adjusted Ratios to give Buttons more room
+    h1, h2, h3, h4, h5 = st.columns([0.4, 1.2, 2.5, 1.3, 3.6])
     h1.markdown("<div class='col-header'>No.</div>", unsafe_allow_html=True)
     h2.markdown("<div class='col-header'>Status</div>", unsafe_allow_html=True)
     h3.markdown("<div class='col-header'>Project Name</div>", unsafe_allow_html=True)
@@ -228,12 +239,13 @@ if st.session_state.page == "home":
             status_text = "Standby"
 
         with st.container():
-            c1, c2, c3, c4, c5, c6, c7 = st.columns([0.5, 1.2, 3.5, 1.5, 1, 1, 1])
+            # Adjusted Row Ratios to perfectly fit the action buttons without squishing
+            c1, c2, c3, c4, c5, c6, c7 = st.columns([0.4, 1.2, 2.5, 1.3, 1.2, 1.2, 1.2])
             
-            c1.markdown(f"<div class='white-text' style='padding-top:5px;'>{idx + 1}</div>", unsafe_allow_html=True)
+            c1.markdown(f"<div class='white-text'>{idx + 1}</div>", unsafe_allow_html=True)
             c2.markdown(f'<div class="status-pill {status_class}">{status_text}</div>', unsafe_allow_html=True)
-            c3.markdown(f"<div class='white-text' style='padding-top:5px;'>{pid}</div>", unsafe_allow_html=True)
-            c4.markdown(f"<div class='white-text' style='padding-top:5px;'>{date_str}</div>", unsafe_allow_html=True)
+            c3.markdown(f"<div class='white-text'>{pid}</div>", unsafe_allow_html=True)
+            c4.markdown(f"<div class='white-text'>{date_str}</div>", unsafe_allow_html=True)
             
             # Action Buttons
             if c5.button("Open", key=f"o_{pid}", use_container_width=True): 

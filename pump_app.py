@@ -32,7 +32,9 @@ def inject_industrial_css():
                 padding-bottom: 8px; 
                 margin-bottom: 10px;
             }
-            .white-text { color: white !important; font-size: 14px; }
+            
+            /* 1. Increased Font Size for List */
+            .white-text { color: white !important; font-size: 16px !important; font-weight: 500; }
             
             /* Status Pills */
             .status-pill {
@@ -42,27 +44,30 @@ def inject_industrial_css():
             }
             .bg-running { background-color: #28a745; }
             .bg-stopped { background-color: #dc3545; }
-            .bg-standby { background-color: #007bff; }
+            .bg-standby { background-color: #0d6efd; }
             .bg-completed { background-color: #6c757d; }
 
-            /* Action Buttons (Standby Format - Blue & White) */
+            /* 2. Action Buttons (Styled identical to Status Pills) */
             button[aria-label="Open"], 
             button[aria-label="Modify"], 
             button[aria-label="Delete"] {
-                background-color: #007bff !important;
-                color: white !important;
-                border: 1px solid #007bff !important;
-                min-height: 30px !important; height: 30px !important; padding: 0 10px !important;
+                border-radius: 4px !important;
+                font-size: 12px !important;
+                font-weight: bold !important;
+                min-height: 26px !important; 
+                height: 26px !important; 
+                padding: 0 5px !important;
+                border: none !important; /* Removes default border */
             }
-            button[aria-label="Open"]:hover, 
-            button[aria-label="Modify"]:hover, 
-            button[aria-label="Delete"]:hover {
-                background-color: #0056b3 !important;
-                border-color: #0056b3 !important;
-                color: white !important;
-            }
+            button[aria-label="Open"] { background-color: #0d6efd !important; color: white !important; }
+            button[aria-label="Modify"] { background-color: #ffc107 !important; color: black !important; }
+            button[aria-label="Delete"] { background-color: #dc3545 !important; color: white !important; }
 
-            /* Warning Confirmation Buttons (Black Text) */
+            button[aria-label="Open"]:hover { background-color: #0b5ed7 !important; color: white !important; }
+            button[aria-label="Modify"]:hover { background-color: #ffca2c !important; color: black !important; }
+            button[aria-label="Delete"]:hover { background-color: #bb2d3b !important; color: white !important; }
+
+            /* 3. Warning Confirmation Buttons (Black Text) */
             button[aria-label="Yes, Delete Project"],
             button[aria-label="Cancel"] {
                 background-color: #E0E0E0 !important;
@@ -211,6 +216,7 @@ if st.session_state.page == "home":
         pid, ptype, ttype, created = p
         date_str = created.split()[0]
         
+        # Determine status pill logically
         if "Endurance" in pid:
             status_class = "bg-running"
             status_text = "Running"
@@ -229,6 +235,7 @@ if st.session_state.page == "home":
             c3.markdown(f"<div class='white-text' style='padding-top:5px;'>{pid}</div>", unsafe_allow_html=True)
             c4.markdown(f"<div class='white-text' style='padding-top:5px;'>{date_str}</div>", unsafe_allow_html=True)
             
+            # Action Buttons
             if c5.button("Open", key=f"o_{pid}", use_container_width=True): 
                 st.session_state.selected_project = pid; st.session_state.page = "dash"; st.rerun()
             if c6.button("Modify", key=f"m_{pid}", use_container_width=True): 

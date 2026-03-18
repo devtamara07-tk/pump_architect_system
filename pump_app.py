@@ -3,6 +3,8 @@ import pandas as pd
 import sqlite3
 import datetime
 
+current_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
 # --- 1. INITIALIZATION & DATABASE ---
 DB_FILE = "architect_system.db"
 
@@ -15,14 +17,56 @@ DB_FILE = "architect_system.db"
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
+    # --- Ensure pumps table schema is correct ---
+    try:
+        # Try to select from the quoted column name
+        c.execute('SELECT "Pump Model" FROM pumps LIMIT 1')
+    except Exception:
+        # If it fails, drop and recreate the table
+        c.execute('DROP TABLE IF EXISTS pumps')
+        c.execute('''CREATE TABLE IF NOT EXISTS pumps (
+            pump_id TEXT,
+            project_id TEXT,
+            "Pump Model" TEXT,
+            "ISO No." TEXT,
+            HP TEXT,
+            kW TEXT,
+            "Voltage (V)" TEXT,
+            "Amp Min" TEXT,
+            "Amp Max" TEXT,
+            Phase TEXT,
+            Hertz TEXT,
+            Insulation TEXT
+        )''')
     # Fixed Table Schema
     c.execute('''CREATE TABLE IF NOT EXISTS projects (
         project_id TEXT PRIMARY KEY, type TEXT, test_type TEXT, 
         run_mode TEXT, target_val TEXT, created_at DATETIME)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS pumps (
-        pump_id TEXT, project_id TEXT, model TEXT, iso_no TEXT, hp REAL, kw REAL, 
-        voltage TEXT, amp_min REAL, amp_max REAL, phase INTEGER, hertz TEXT, 
-        insulation TEXT, tank_name TEXT, PRIMARY KEY (pump_id, project_id))''')
+    c.execute('''CREATE TABLE IF NOT EXISTS projects (
+        project_id TEXT PRIMARY KEY, type TEXT, test_type TEXT,
+        run_mode TEXT, target_val TEXT, created_at DATETIME, tanks TEXT)''')
+
+
+
+    # --- MIGRATION: Add tanks column if missing ---
+    try:
+        c.execute("ALTER TABLE projects ADD COLUMN tanks TEXT")
+    except sqlite3.OperationalError:
+        pass  # Column already exists, ignore error
+
+    # --- MIGRATION: Add layout column if missing ---
+    try:
+        c.execute("ALTER TABLE projects ADD COLUMN layout TEXT")
+    except sqlite3.OperationalError:
+        pass  # Column already exists, ignore error
+
+    # --- MIGRATION: Add hardware/sensor mapping columns if missing ---
+    for col in ["hardware_list", "hardware_dfs", "hardware_ds"]:
+        try:
+            c.execute(f"ALTER TABLE projects ADD COLUMN {col} TEXT")
+        except sqlite3.OperationalError:
+            pass
+
     conn.commit()
     conn.close()
 
@@ -105,45 +149,50 @@ def render_project_form():
 
     if st.button("Cancel & Return"):
         st.session_state.page = "home"; st.rerun()
-
-    # STEP 1: Details & Test Target
+    
+    # STEP 1: TEST DEFINITION ---
+    # --- STEP 1: TEST DEFINITION ---
     if step == 1:
-        st.markdown("<div class='step-title'>1. Project Details & Target</div>", unsafe_allow_html=True)
-        c1, c2 = st.columns([1, 2])
-        st.session_state.proj_type = c1.radio("Pump Type", ["Centrifugal", "Submersible"], horizontal=True)
-        st.session_state.test_type = c2.text_input("Test Type", value=st.session_state.get("test_type", ""))
-        
-        st.divider()
-        st.markdown("<p style='color:white; font-weight:bold; font-size:20px;'>Test Target Selection</p>", unsafe_allow_html=True)
-        rt1, rt2 = st.columns([1, 2])
-        run_mode = rt1.radio("Run Mode", ["Continuous Run", "Intermittent Run"], key="rm_input")
-        with rt2:
-            if run_mode == "Continuous Run":
-                unit = st.selectbox("Duration Unit", ["Hours", "Days"])
-                st.number_input(f"Total {unit}", min_value=1, key="tv_input")
-            else:
-                st.number_input("Total Cycles", min_value=1, key="tv_input")
+        st.markdown("<div class='step-title'>1. Test Definition</div>", unsafe_allow_html=True)
 
-        # --- NEW: Project Name Display ---
-        # Merging Pump Type + Test Type
-        merged_name = f"{st.session_state.proj_type} {st.session_state.test_type}"
-        
-        st.write("") # Spacer
-        st.markdown(f"""
-            <p style='margin-bottom: 0px; color:white; font-weight:bold; font-size:20px;'>
-                Project Name
-            </p>
-            <p style='margin-top: 5px; font-size:20px;'>
-                <span style='color: white;'>Name: </span>
-                <span style='color: #3498DB; font-weight: bold;'>{merged_name}</span>
-            </p>
-        """, unsafe_allow_html=True)
-        
-        # Step 1 Button
-        st.write("") 
-        if st.button("Next", use_container_width=True): 
-            st.session_state.wizard_step = 2
-            st.rerun()
+        # 1. PUMP TYPE (Radio, 2 options, row)
+        p_types = ["Centrifugal", "Submersible"]
+        saved_p_type = st.session_state.get("proj_type", "Centrifugal")
+        proj_type = st.radio("Pump Type", p_types, index=p_types.index(saved_p_type) if saved_p_type in p_types else 0, horizontal=True)
+        st.session_state.proj_type = proj_type
+
+        # 2. TEST TYPE (Text Input)
+        saved_t_type = st.session_state.get("test_type", "")
+        test_type = st.text_input("Test Type", value=saved_t_type)
+        st.session_state.test_type = test_type
+
+        # 3. RUN MODE (Radio, 2 options, row)
+        r_modes = ["Continuous", "Intermittent"]
+        saved_r_mode = st.session_state.get("run_mode", "Continuous")
+        run_mode = st.radio("Run Mode", r_modes, index=r_modes.index(saved_r_mode) if saved_r_mode in r_modes else 0, horizontal=True)
+        st.session_state.run_mode = run_mode
+
+        # 4. TARGET VALUE (Number + Unit)
+        try:
+            saved_target = float(st.session_state.get("target_val", 1.0))
+        except:
+            saved_target = 1.0
+        target_val = st.number_input("Target Value", min_value=1.0, value=saved_target)
+        st.session_state.target_val = target_val
+
+        unit_options = ["HR", "Days", "Cycles"]
+        saved_unit = st.session_state.get("target_unit", "HR")
+        target_unit = st.radio("Unit", unit_options, index=unit_options.index(saved_unit) if saved_unit in unit_options else 0, horizontal=True)
+        st.session_state.target_unit = target_unit
+
+        # 5. PROJECT NAME (auto-generated, displayed at bottom)
+        project_name = f"{proj_type} {test_type} {run_mode} {target_val} {target_unit}"
+        st.session_state.project_name = project_name
+
+        st.markdown(f"<div style='margin-top:20px; color:#0d6efd; font-size:20px; font-weight:bold;'>Project Name: {project_name}</div>", unsafe_allow_html=True)
+
+        st.write("")
+        if st.button("Next Step"): st.session_state.wizard_step = 2; st.rerun()
 
    # STEP 2: Full Pump Specification
     elif step == 2:
@@ -159,7 +208,7 @@ def render_project_form():
         # 2. Wrap the Table in a FORM to stop the vibration
         with st.form("pump_spec_form", clear_on_submit=False):
             st.markdown("<p style='color: #ffc107;'>⚠️ Type all data, then click 'Confirm Table Entries' below to lock in IDs.</p>", unsafe_allow_html=True)
-            
+
             step2_config = {
                 "Pump Model": st.column_config.TextColumn("Pump Model", required=True, default=""),
                 "Pump ID": st.column_config.TextColumn("Pump ID", disabled=True),
@@ -167,26 +216,35 @@ def render_project_form():
                 "Phase": st.column_config.SelectboxColumn("Phase", options=[1, 3], default=3),
             }
 
+            # Ensure required columns always exist before editing
+            required_cols = ["Pump Model", "Pump ID", "ISO No.", "HP", "kW", "Voltage (V)", "Amp Min", "Amp Max", "Phase", "Hertz", "Insulation"]
+            for col in required_cols:
+                if col not in st.session_state.specs_df.columns:
+                    st.session_state.specs_df[col] = "" if col not in ["HP", "kW", "Amp Min", "Amp Max", "Phase"] else 0
+
             # This editor is now "silent" - it won't vibrate!
             updated_df = st.data_editor(
-                st.session_state.specs_df,
+                st.session_state.specs_df[required_cols],
                 num_rows="dynamic",
                 use_container_width=True,
                 hide_index=True,
                 column_config=step2_config,
                 key="pump_editor_form_mode"
             )
-            
+
             # The "Enter" clause - This processes everything at once
             submitted = st.form_submit_button("Confirm Table Entries", use_container_width=True)
-            
+
             if submitted:
-                # Apply the .reset_index(drop=True) and ID logic only on click
-                final_df = updated_df.dropna(subset=["Pump Model"]).reset_index(drop=True)
-                final_df["Pump ID"] = [f"P-{str(i+1).zfill(2)}" for i in range(len(final_df))]
-                st.session_state.specs_df = final_df
-                st.success("Table synced! IDs generated. You can now click Next.")
-                st.rerun()
+                # Defensive: Check if 'Pump Model' column exists after editing
+                if "Pump Model" not in updated_df.columns:
+                    st.error("'Pump Model' column is missing. Please do not remove required columns.")
+                else:
+                    final_df = updated_df.dropna(subset=["Pump Model"]).reset_index(drop=True)
+                    final_df["Pump ID"] = [f"P-{str(i+1).zfill(2)}" for i in range(len(final_df))]
+                    st.session_state.specs_df = final_df
+                    st.success("Table synced! IDs generated. You can now click Next.")
+                    st.rerun()
 
         # 3. Navigation Buttons (Outside the form)
         st.write("") 
@@ -309,18 +367,44 @@ def render_project_form():
     # STEP 4: Hardware & Sensor Mapping
     elif step == 4:
         st.markdown("<div class='step-title'>4. Hardware & Sensor Mapping</div>", unsafe_allow_html=True)
-        
+
+        # --- FORCE REHYDRATE HARDWARE STATE IF RESTORING ---
+        if st.session_state.get("_restoring_project", False):
+            import json
+            conn = sqlite3.connect(DB_FILE)
+            proj_row = conn.execute("SELECT hardware_list, hardware_dfs, hardware_ds FROM projects WHERE project_id = ?", (st.session_state.get("current_project", ""),)).fetchone()
+            conn.close()
+            if proj_row:
+                # hardware_list
+                try:
+                    st.session_state.hardware_list = json.loads(proj_row[0]) if proj_row[0] else []
+                except Exception:
+                    st.session_state.hardware_list = []
+                # hardware_dfs
+                try:
+                    dfs = json.loads(proj_row[1]) if proj_row[1] else {}
+                    for k, v in dfs.items():
+                        st.session_state[k] = pd.read_json(v)
+                except Exception:
+                    pass
+                # hardware_ds
+                try:
+                    dss = json.loads(proj_row[2]) if proj_row[2] else {}
+                    for k, v in dss.items():
+                        st.session_state[k] = v
+                except Exception:
+                    pass
+            st.session_state._restoring_project = False
+
         # 1. Build the Master Assignment Lists
         if "specs_df" in st.session_state and not st.session_state.specs_df.empty:
             available_pumps = st.session_state.specs_df["Pump ID"].tolist()
         else:
             available_pumps = ["P-01"] # Fallback
-            
         if "water_tanks" in st.session_state:
             available_tanks = st.session_state.water_tanks
         else:
             available_tanks = ["Water Tank 1"]
-            
         assignment_options = ["None (Unused)", "Global (Ambient Room)"] + available_tanks + available_pumps
 
         # 2. Hardware Inventory Initialization
@@ -506,11 +590,16 @@ def render_project_form():
         if not active_sensors:
             active_sensors = ["No Active Sensors Found"]
 
-        # Pull available pumps for formula assignment
+        # Pull available pumps and tanks for formula assignment
+        pump_options = ["Global (Apply to All Compatible Pumps)"]
+        # Add water tank options if available
+        if "water_tanks" in st.session_state and st.session_state.water_tanks:
+            pump_options += [f"Water Tank: {tank}" for tank in st.session_state.water_tanks]
+        # Add individual pumps
         if "specs_df" in st.session_state and not st.session_state.specs_df.empty:
-            pump_options = ["Global (Apply to All Compatible Pumps)"] + st.session_state.specs_df["Pump ID"].tolist()
+            pump_options += st.session_state.specs_df["Pump ID"].tolist()
         else:
-            pump_options = ["Global (Apply to All Compatible Pumps)", "P-01"]
+            pump_options += ["P-01"]
 
         # 2. INITIALIZE DATAFRAMES
         if "var_mapping_df" not in st.session_state:
@@ -591,7 +680,7 @@ def render_project_form():
                 st.session_state.wizard_step = 6
                 st.rerun()
 
-    # --- STEP 6 (DASHBOARD & REPORT SET UP) ---
+    # STEP 6 (DASHBOARD & REPORT SET UP) ---
     elif step == 6:
         st.markdown("<div class='step-title'>6. Dashboard and Report Set up</div>", unsafe_allow_html=True)
 
@@ -603,15 +692,25 @@ def render_project_form():
             valid_pumps = ["P-01"]
             pumps_df = pd.DataFrame({"Pump ID": ["P-01"], "Amp Max": [10.0]})
 
-        # Initialize Watchdogs DF
-        if "watchdogs_df" not in st.session_state:
-            st.session_state.watchdogs_df = pd.DataFrame([
-                {"Watchdog Name": "ESP32 System", "Alert Limit": "Connection Lost"},
-                {"Watchdog Name": "HIOKI Interface", "Alert Limit": "Timeout > 5s"},
-                {"Watchdog Name": "MAX6675 Sensor", "Alert Limit": "Error 0xFFFF"}
-            ])
+        # --- 1. SYSTEM WATCHDOGS (Dynamic) ---
+        st.markdown("<p style='color: white; font-size: 18px; font-weight: bold;'>1. System Watchdogs & Safety Limits</p>", unsafe_allow_html=True)
+        allowed_methods = []
+        if "hardware_list" in st.session_state:
+            for hw in st.session_state.hardware_list:
+                ds_key = f"ds_{hw}"
+                if ds_key in st.session_state:
+                    allowed_methods.extend(st.session_state[ds_key])
+        allowed_methods = list(set(allowed_methods))
+        status_map = {m: ("ONLINE" if m in allowed_methods else "OFFLINE") for m in ["Manual Input", "Voice Recording", "ESP32 Pulse", "ESP32 CAM (OCR)"]}
+        st.write("**Allowed Data Entry Methods & Status:**")
+        for m in status_map:
+            st.write(f"- {m}: {status_map[m]}")
+        # Specific watchdogs
+        st.write("**Specific Watchdogs:**")
+        st.write("- Connection Lost: ONLINE")
+        st.write("- ESP32 Internal Temperature: ONLINE")
 
-        # Initialize Safety Limits DF
+        # --- 2. SAFETY LIMITS ---
         if "limits_df" not in st.session_state:
             limits = []
             for _, row in pumps_df.iterrows():
@@ -622,98 +721,145 @@ def render_project_form():
                     "Max Temp Rise (°C)": 115.0 
                 })
             st.session_state.limits_df = pd.DataFrame(limits)
-
-        # --- THE NO-SHAKE FORM ---
-        with st.form("step6_dashboard_form", clear_on_submit=False):
-            st.markdown("<p style='color: white; font-size: 18px; font-weight: bold;'>1. System Watchdogs & Safety Limits</p>", unsafe_allow_html=True)
-            
-            wd_config = {
-                "Watchdog Name": st.column_config.TextColumn("Watchdog Parameter", required=True),
-                "Alert Limit": st.column_config.TextColumn("Critical Trigger", required=True)
-            }
-            updated_wd = st.data_editor(st.session_state.watchdogs_df, hide_index=True, use_container_width=True, num_rows="dynamic", column_config=wd_config, key="watchdog_edit")
-
-            st.divider()
-
-            st.markdown("<p style='color: white; font-size: 18px; font-weight: bold;'>2. Pump Safety Thresholds</p>", unsafe_allow_html=True)
-            lim_config = {
-                "Pump ID": st.column_config.TextColumn("Pump ID", disabled=True),
-                "Max Stator Temp (°C)": st.column_config.NumberColumn(required=True),
-                "Max Current (A)": st.column_config.NumberColumn(required=True),
-                "Max Temp Rise (°C)": st.column_config.NumberColumn(required=True)
-            }
-            updated_lim = st.data_editor(st.session_state.limits_df, hide_index=True, use_container_width=True, column_config=lim_config, key="limits_edit")
-
-            st.write("")
-            if st.form_submit_button("Confirm & Save Dashboard Settings", use_container_width=True):
-                st.session_state.watchdogs_df = updated_wd
-                st.session_state.limits_df = updated_lim
-                st.rerun()
+        lim_config = {
+            "Pump ID": st.column_config.TextColumn("Pump ID", disabled=True),
+            "Max Stator Temp (°C)": st.column_config.NumberColumn(required=True),
+            "Max Current (A)": st.column_config.NumberColumn(required=True),
+            "Max Temp Rise (°C)": st.column_config.NumberColumn(required=True)
+        }
+        updated_lim = st.data_editor(st.session_state.limits_df, hide_index=True, use_container_width=True, column_config=lim_config, key="limits_edit")
+        if st.button("Save Safety Limits", use_container_width=True):
+            st.session_state.limits_df = updated_lim
+            st.success("Safety limits updated.")
 
         st.divider()
 
-        # 3. DASHBOARD VISUAL PREVIEW (3 Horizontal Lines)
+        # --- 3. EVENT ALERT LOG (Dynamic, Scrollable) ---
+        st.markdown("<p style='color: white; font-size: 18px; font-weight: bold;'>2. Event Alert Log</p>", unsafe_allow_html=True)
+        if "event_log" not in st.session_state:
+            st.session_state.event_log = []
+        def log_event(msg):
+            import datetime
+            st.session_state.event_log.insert(0, f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}")
+        # Example: log project start if log is empty
+        if not st.session_state.event_log:
+            log_event("Project started.")
+        # Display log
+        st.write("")
+        st.markdown("<div style='max-height:200px; overflow-y:auto; background:#181b20; border-radius:6px; padding:8px;'>", unsafe_allow_html=True)
+        for entry in st.session_state.event_log:
+            st.markdown(f"<div style='color:#eee; font-size:14px; margin-bottom:2px;'>{entry}</div>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        st.divider()
+
+        # --- 4. DASHBOARD LAYOUT: 3x3 GRID PER TANK ---
         st.markdown("<p style='color: white; font-size: 18px; font-weight: bold;'>3. Dashboard Visual Layout Preview</p>", unsafe_allow_html=True)
-        selected_dash_pumps = st.multiselect("Select Pumps to show on Main Dashboard", valid_pumps, default=valid_pumps)
-        
-        cols = st.columns(3)
-        for i, p_id in enumerate(selected_dash_pumps):
-            with cols[i % 3]:
-                st.markdown(f"""
-                    <div style="border: 1px solid #444; padding: 10px; margin-bottom: 10px; border-radius: 5px; background: #1C1F24; text-align: center;">
-                        <p style="margin:0; font-weight: bold; color: #3498DB; font-size: 18px;">{p_id}</p>
-                        <p style="margin:0; font-size: 14px; color: #2ecc71; font-weight: bold;">0.00A &nbsp;&nbsp; 🟢 RUN</p>
-                        <p style="margin:0; font-size: 12px; color: #888;">Temp: 00.0°C | Rise: 00.0°C</p>
-                    </div>
-                """, unsafe_allow_html=True)
+        if "layout_df" in st.session_state and "water_tanks" in st.session_state:
+            layout_df = st.session_state.layout_df
+            tanks = st.session_state.water_tanks
+            for tank in tanks:
+                st.markdown(f"<div style='color:#4CAF50; font-size:20px; font-weight:bold; margin-top:16px;'>Water Tank: {tank}</div>", unsafe_allow_html=True)
+                tank_pumps = layout_df[layout_df["Assigned Tank"] == tank]["Pump ID"].tolist()
+                rows = [tank_pumps[i:i+3] for i in range(0, len(tank_pumps), 3)]
+                for row in rows:
+                    cols = st.columns(3)
+                    for i, p_id in enumerate(row):
+                        with cols[i]:
+                            # Example: show formulas and running time (placeholder)
+                            st.markdown(f"""
+                                <div style='border: 1px solid #444; padding: 10px; margin-bottom: 10px; border-radius: 5px; background: #1C1F24; text-align: center;'>
+                                    <p style='margin:0; font-weight: bold; color: #3498DB; font-size: 18px;'>{p_id}</p>
+                                    <p style='margin:0; font-size: 14px; color: #2ecc71; font-weight: bold;'>0.00A &nbsp;&nbsp; 🟢 RUN</p>
+                                    <p style='margin:0; font-size: 12px; color: #888;'>Temp: 00.0°C | Rise: 00.0°C</p>
+                                    <p style='margin:0; font-size: 12px; color: #aaa;'>Formula: [calculated]</p>
+                                    <p style='margin:0; font-size: 12px; color: #aaa;'>Running Time: 0 HR / 0 Cycles</p>
+                                </div>
+                            """, unsafe_allow_html=True)
+                if not tank_pumps:
+                    st.info("No pumps assigned to this tank.")
+        else:
+            st.warning("No tank or pump layout found. Please complete previous steps.")
 
         st.divider()
 
-        # 4. FINAL SAVE LOGIC (Positional Fix)
+        # --- 5. FINAL SAVE LOGIC ---
         st.markdown("<p style='color: white; font-size: 18px; font-weight: bold;'>4. Finalize & Save</p>", unsafe_allow_html=True)
         c1, c2 = st.columns([1, 4])
         if c1.button("Back", key="back_s6"): st.session_state.wizard_step = 5; st.rerun()
-        
         if c2.button("Finish & Save Project", type="primary", use_container_width=True, key="finish_btn"):
             proj_type = st.session_state.get("proj_type", "Project")
             test_type = st.session_state.get("test_type", "Test")
-            project_name = f"{proj_type} {test_type}"
+            
+            # --- NEW: GET TARGET VAL AND RUN MODE ---
+            target_val = str(st.session_state.get("target_val", "0"))
+            run_mode = st.session_state.get("run_mode", "Continuous")
+            
+            # --- NEW: DETERMINE UNIT (Hrs or Cycles) ---
+            is_cycle = "Cycle" in test_type or "Intermittent" in test_type or "Cycle" in run_mode
+            unit = "Cycles" if is_cycle else "Hrs"
+            
+            # --- NEW: CREATE THE COMBINED PROJECT NAME ---
+            project_name = f"{proj_type} {test_type} {target_val} {unit}"
+            
+            # --- THE DATE (TIMESTAMP) ---
             timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             
             conn = sqlite3.connect(DB_FILE)
             c = conn.cursor()
             
-            # --- THE POSITIONAL FIX ---
-            # Instead of naming columns, we just push 6 values into the 6 slots.
-            # This bypasses the "no column named project_name" error.
             try:
-                c.execute("INSERT OR REPLACE INTO projects VALUES (?, ?, ?, ?, ?, ?)", 
-                         (project_name, proj_type, test_type, timestamp, "Active", "Operator"))
-                
-                # Save Pumps Specs
+                run_mode = st.session_state.get("run_mode", "Continuous")
+                target_val = str(st.session_state.get("target_val", "0"))
+
+                # --- CLEAN SAVE TO DATABASE ---
+                # 6 values in exact order: ID, Type, Test Type, Run Mode, Target, Date
+
+                tanks_str = "||".join(st.session_state.get("water_tanks", ["Water Tank 1"]))
+                layout_json = None
+                if "layout_df" in st.session_state and isinstance(st.session_state.layout_df, pd.DataFrame):
+                    layout_json = st.session_state.layout_df.to_json()
+                # Upsert with layout
+
+                # --- NEW: Save hardware_list, all df_/ds_ DataFrames as JSON ---
+                hardware_list = st.session_state.get("hardware_list", [])
+                hardware_dfs = {}
+                hardware_ds = {}
+                for k in st.session_state.keys():
+                    if k.startswith("df_") and isinstance(st.session_state[k], pd.DataFrame):
+                        hardware_dfs[k] = st.session_state[k].to_json()
+                    if k.startswith("ds_") and isinstance(st.session_state[k], list):
+                        hardware_ds[k] = st.session_state[k]
+                import json
+                hardware_dfs_json = json.dumps(hardware_dfs)
+                hardware_ds_json = json.dumps(hardware_ds)
+                hardware_list_json = json.dumps(hardware_list)
+
+                c.execute("INSERT OR REPLACE INTO projects (project_id, type, test_type, run_mode, target_val, created_at, tanks, layout, hardware_list, hardware_dfs, hardware_ds) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (project_name, proj_type, test_type, run_mode, target_val, timestamp, tanks_str, layout_json, hardware_list_json, hardware_dfs_json, hardware_ds_json))
+
+                # --- Delete old pump records for this project to prevent duplicates ---
+                c.execute("DELETE FROM pumps WHERE project_id = ?", (project_name,))
+
+                # Save Pumps Specs (Insulation only, no tank assignment, columns must match schema)
                 for _, row in st.session_state.specs_df.dropna(subset=["Pump ID"]).iterrows():
                     p_id = row["Pump ID"]
-                    tank_name = "Unassigned"
-                    if "layout_df" in st.session_state:
-                        match = st.session_state.layout_df[st.session_state.layout_df["Pump ID"] == p_id]
-                        if not match.empty: tank_name = match.iloc[0]["Assigned Tank"]
-
-                    # --- UPDATED: Added a 13th '?' and a 13th value ("N/A") ---
-                    c.execute("INSERT OR REPLACE INTO pumps VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", 
-                             (p_id, 
-                              project_name, 
-                              row.get("Pump Model", ""), 
-                              row.get("ISO No.", ""), 
-                              row.get("HP", 0), 
-                              row.get("kW", 0), 
-                              row.get("Voltage (V)", ""), 
-                              row.get("Amp Max", 0), 
-                              row.get("Phase", 3), 
-                              row.get("Hertz", 60), 
-                              row.get("Insulation", ""), 
-                              tank_name,
-                              "N/A" # This is the 13th value for the 13th column
-                             ))
+                    c.execute("INSERT OR REPLACE INTO pumps (pump_id, project_id, `Pump Model`, `ISO No.`, HP, kW, `Voltage (V)`, `Amp Min`, `Amp Max`, Phase, Hertz, Insulation) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        (
+                            p_id,
+                            project_name,
+                            row.get("Pump Model", ""),
+                            row.get("ISO No.", ""),
+                            str(row.get("HP", "")),
+                            str(row.get("kW", "")),
+                            row.get("Voltage (V)", ""),
+                            str(row.get("Amp Min", "")),
+                            str(row.get("Amp Max", "")),
+                            str(row.get("Phase", "")),
+                            str(row.get("Hertz", "")),
+                            row.get("Insulation", "")
+                        )
+                    )
                 
                 conn.commit()
                 st.success(f"Project '{project_name}' Successfully Saved!")
@@ -725,7 +871,7 @@ def render_project_form():
                 st.rerun()
 
             except Exception as e:
-                st.error(f"Database Error: {e}. Ensure the 'projects' table has exactly 6 columns.")
+                st.error(f"Database Error: {e}")
             finally:
                 conn.close()
 
@@ -733,7 +879,7 @@ def render_project_form():
 def handle_open_project(project_id):
     conn = sqlite3.connect(DB_FILE)
     # 1. Load the core project info
-    proj_row = conn.execute("SELECT type, test_type FROM projects WHERE project_id = ?", (project_id,)).fetchone()
+    proj_row = conn.execute("SELECT project_id, type, test_type, run_mode, target_val, tanks FROM projects WHERE project_id = ?", (project_id,)).fetchone()
     
     if proj_row:
         st.session_state.current_project = project_id
@@ -755,27 +901,105 @@ def handle_open_project(project_id):
 
 def handle_modify_project(project_id):
     conn = sqlite3.connect(DB_FILE)
-    # Using 'type' and 'test_type' to match your projects table
-    proj_row = conn.execute("SELECT type, test_type FROM projects WHERE project_id = ?", (project_id,)).fetchone()
-    
+    # Fetch all columns for project
+    proj_row = conn.execute("SELECT project_id, type, test_type, run_mode, target_val, tanks, layout, hardware_list, hardware_dfs, hardware_ds FROM projects WHERE project_id = ?", (project_id,)).fetchone()
+
+
     if proj_row:
-        # 1. Fill the 'Desktop' (Session State) with Basic Info
-        st.session_state.proj_type = proj_row[0]
-        st.session_state.test_type = proj_row[1]
-        
-        # 2. Fill the 'Desktop' with the Pumps
+        # --- Step 0: Clear previous session state for tables ---
+        for k in ["specs_df", "layout_df"]:
+            if k in st.session_state:
+                del st.session_state[k]
+        # Also clear all hardware config DataFrames and Data Source lists
+        extra_keys = [k for k in st.session_state.keys() if k.startswith("df_") or k.startswith("ds_")]
+        for k in extra_keys:
+            del st.session_state[k]
+
+        # --- Step 1: Restore project metadata ---
+        st.session_state.project_name = proj_row[0]
+        st.session_state.proj_type = proj_row[1]
+        st.session_state.test_type = proj_row[2]
+        st.session_state.run_mode = proj_row[3]
+        st.session_state.target_val = proj_row[4]
+        st.session_state.current_project = project_id
+
+        # --- Step 3: Restore tanks ---
+        if proj_row[5]:
+            st.session_state.water_tanks = proj_row[5].split("||")
+        else:
+            st.session_state.water_tanks = ["Water Tank 1"]
+
+        # --- Step 3: Restore layout_df ---
+        if proj_row[6]:
+            try:
+                st.session_state.layout_df = pd.read_json(proj_row[6])
+            except Exception as e:
+                st.warning(f"Could not restore installation layout: {e}. Starting with blank layout.")
+                st.session_state.layout_df = pd.DataFrame()
+        else:
+            st.session_state.layout_df = pd.DataFrame()
+
+        # --- Step 4: Restore hardware mapping DataFrames and lists ---
+        import json
+        # hardware_list
+        if len(proj_row) > 7 and proj_row[7]:
+            try:
+                st.session_state.hardware_list = json.loads(proj_row[7])
+            except Exception as e:
+                st.session_state.hardware_list = []
+        else:
+            st.session_state.hardware_list = []
+        # hardware_dfs
+        if len(proj_row) > 8 and proj_row[8]:
+            try:
+                dfs = json.loads(proj_row[8])
+                for k, v in dfs.items():
+                    st.session_state[k] = pd.read_json(v)
+            except Exception as e:
+                pass
+        # hardware_ds
+        if len(proj_row) > 9 and proj_row[9]:
+            try:
+                dss = json.loads(proj_row[9])
+                for k, v in dss.items():
+                    st.session_state[k] = v
+            except Exception as e:
+                pass
+
+        # --- Step 2: Restore Pump Specification Table ---
         try:
-            # We look in the pumps table for rows belonging to this project ID
-            query = "SELECT * FROM pumps WHERE project_name = ?"
+            query = "SELECT * FROM pumps WHERE project_id = ?"
             pumps_df = pd.read_sql_query(query, conn, params=(project_id,))
-            
             if not pumps_df.empty:
-                # We drop the 'project_name' column so the table editor in Step 2 stays clean
-                st.session_state.specs_df = pumps_df.drop(columns=['project_name'], errors='ignore')
-        except:
-            pass # If no pumps exist yet, it stays blank
-            
-        # 3. Open the 'Factory' (Wizard)
+                keep_cols = ["Pump Model", "Pump ID", "ISO No.", "HP", "kW", "Voltage (V)", "Amp Min", "Amp Max", "Phase", "Hertz", "Insulation"]
+                # Ensure Pump ID column exists
+                if "pump_id" in pumps_df.columns:
+                    pumps_df = pumps_df.rename(columns={"pump_id": "Pump ID"})
+                # Fill missing columns with default values
+                for col in keep_cols:
+                    if col not in pumps_df.columns:
+                        pumps_df[col] = "" if col not in ["HP", "kW", "Amp Min", "Amp Max", "Phase"] else 0
+                st.session_state.specs_df = pumps_df[keep_cols]
+        except Exception as e:
+            st.warning(f"Could not restore pump specification table: {e}")
+
+        # --- Step 4: Restore hardware mapping DataFrames (if present) ---
+        # (REMOVED: Deletion of df_*/ds_* keys after restore, as this wipes out restored state)
+
+        # --- Step 5: Restore formulas and variable mapping (if present) ---
+        try:
+            # Example: restore formulas_df, var_mapping_df, etc. (pseudo-code)
+            # formulas_row = conn.execute("SELECT formulas FROM projects WHERE project_id = ?", (project_id,)).fetchone()
+            # if formulas_row and formulas_row[0]:
+            #     st.session_state.formulas_df = pd.read_json(formulas_row[0])
+            # varmap_row = conn.execute("SELECT var_mapping FROM projects WHERE project_id = ?", (project_id,)).fetchone()
+            # if varmap_row and varmap_row[0]:
+            #     st.session_state.var_mapping_df = pd.read_json(varmap_row[0])
+            pass
+        except Exception as e:
+            st.warning(f"Could not restore formulas or variable mapping: {e}")
+
+        # --- Set wizard state and rerun ---
         st.session_state.page = "create"
         st.session_state.wizard_step = 1
         conn.close()
@@ -788,8 +1012,23 @@ inject_industrial_css()
 
 if st.session_state.page == "home":
     st.markdown('<div class="hero-bg"><h1 style="color:white; letter-spacing:2px; font-size:3rem;">PUMP ARCHITECT SYSTEM</h1><p style="color:#aaa; font-size:1.5rem;">Control Center v2.0</p></div>', unsafe_allow_html=True)
+    
     if st.button("Create New Project"):
-        st.session_state.page = "create"; st.session_state.wizard_step = 1; st.rerun()
+        # Clear all user input fields and Step 2 table
+        for k in [
+            "project_name", "proj_type", "test_type", "run_mode", "target_val", "target_unit",
+            "specs_df", "layout_df", "water_tanks", "hardware_list", "var_mapping_df", "formulas_df",
+            "watchdogs_df", "limits_df", "event_log", "wizard_step", "current_project"
+        ]:
+            if k in st.session_state:
+                del st.session_state[k]
+        # Also clear all hardware config DataFrames and Data Source lists
+        extra_keys = [k for k in st.session_state.keys() if k.startswith("df_") or k.startswith("ds_")]
+        for k in extra_keys:
+            del st.session_state[k]
+        st.session_state.page = "create"
+        st.session_state.wizard_step = 1
+        st.rerun()
     
     st.write("")
     st.markdown("<div class='table-title' style='color:white; font-size:24px; font-weight:bold;'>CURRENT PROJECTS</div>", unsafe_allow_html=True)
@@ -861,98 +1100,135 @@ elif st.session_state.page == "create":
     render_project_form()  
 
 elif st.session_state.page == "dashboard":
-    # 1. Custom CSS to force the dark industrial look
+    # 1. Custom CSS for the dark industrial look (No Icons)
     st.markdown("""
         <style>
         .dash-bg { background-color: #0E1117; color: white; font-family: sans-serif; }
         .panel { background-color: #1C1F24; border-radius: 8px; padding: 15px; margin-bottom: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); border: 1px solid #2A2D34; }
-        .panel-title { font-size: 12px; color: #888; font-weight: bold; letter-spacing: 1px; margin-bottom: 10px; text-transform: uppercase; }
+        .panel-title { font-size: 16px; color: #FFFFFF; font-weight: bold; letter-spacing: 1px; margin-bottom: 10px; text-transform: uppercase; }
         .value-green { color: #2ECC71; font-size: 36px; font-weight: bold; line-height: 1; margin: 5px 0; }
         .value-grey { color: #888; font-size: 36px; font-weight: bold; line-height: 1; margin: 5px 0; }
         .status-light-run { height: 20px; width: 20px; background-color: #2ECC71; border-radius: 50%; display: inline-block; box-shadow: 0 0 10px #2ECC71; }
         .status-light-stop { height: 20px; width: 20px; background-color: #555; border-radius: 50%; display: inline-block; }
-        .header-title { font-size: 18px; font-weight: bold; letter-spacing: 1px; margin-bottom: 15px; text-transform: uppercase; }
+        .header-title { font-size: 22px; font-weight: bold; letter-spacing: 1px; color: #3498DB; text-transform: uppercase; margin-bottom: 5px; }
+        .event-log-text { font-size: 13px; color: #AAA; font-family: monospace; margin-bottom: 4px; }
+        .event-alert { color: #E74C3C; font-weight: bold; }
         </style>
     """, unsafe_allow_html=True)
 
-    # 2. Main Header
-    st.markdown(f"""
-        <div class="header-title">PUMP ARCHITECT GEM: ENDURANCE TEST DASHBOARD <span style="color:#888; font-size:14px; font-weight:normal;">| PROJECT: {st.session_state.get('current_project', 'Unknown')}</span></div>
-    """, unsafe_allow_html=True)
+    # 2. Fetch REAL Database Info for this Project
+    project_name = st.session_state.get('current_project', 'UNKNOWN PROJECT')
+    
+    conn = sqlite3.connect(DB_FILE)
+    proj_row = conn.execute("SELECT run_mode, target_val, test_type FROM projects WHERE project_id = ?", (project_name,)).fetchone()
+    conn.close()
+    
+    # Extract data or default if missing
+    run_mode = proj_row[0] if proj_row and proj_row[0] else "Continuous"
+    target_val = proj_row[1] if proj_row and proj_row[1] else "0"
+    test_type = proj_row[2] if proj_row and proj_row[2] else ""
 
-    # 3. Top Row (Progress Bars)
-    st.markdown("""
-        <div style="display: flex; gap: 20px; margin-bottom: 20px;">
-            <div class="panel" style="flex: 1; margin-bottom: 0;">
-                <div style="display: flex; justify-content: space-between;"><span class="panel-title">TOTAL MISSION OBJECTIVES:</span> <span style="font-weight:bold;">2,450 / 3,000 hrs</span></div>
-                <div style="background: #333; height: 10px; border-radius: 5px; margin-top: 5px;"><div style="background: #EEDD82; width: 81%; height: 100%; border-radius: 5px;"></div></div>
-            </div>
-            <div class="panel" style="flex: 1; margin-bottom: 0;">
-                <div style="display: flex; justify-content: space-between;"><span class="panel-title">TOTAL CYCLES</span> <span style="font-weight:bold;">8,912 / 11,000 cycles</span></div>
-                <div style="background: #333; height: 10px; border-radius: 5px; margin-top: 5px;"><div style="background: #ddd; width: 81%; height: 100%; border-radius: 5px;"></div></div>
-            </div>
+    # Main Header
+    st.markdown(f"""
+        <div style="background:#1C1F24; padding:20px; border-radius:10px; border-left: 5px solid #3498DB; margin-bottom:20px;">
+            <div class="header-title">PUMP ARCHITECT SYSTEM</div>
+            <div style="color:white; font-size: 28px; font-weight: bold; letter-spacing: 1px;">PROJECT: {project_name}</div>
         </div>
     """, unsafe_allow_html=True)
 
-    # 4. Main Grid Split (Left: Watchdog, Right: Pumps)
+    # 3. Dynamic Progress Bar (Uses real target values from the database)
+    is_cycle_test = "Cycle" in test_type or "Intermittent" in test_type or "Cycle" in run_mode
+    
+    if is_cycle_test:
+        bar_title = "TOTAL MISSION CYCLES"
+        bar_value = f"0 / {target_val} cycles"
+        bar_color = "#3498DB" 
+    else:
+        bar_title = "TOTAL MISSION RUN TIME"
+        bar_value = f"0 / {target_val} hrs"
+        bar_color = "#EEDD82" 
+
+    # Progress bar starts at 0% because the test hasn't physically run yet
+    st.markdown(f"""
+        <div class="panel" style="margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between;"><span class="panel-title">{bar_title}</span> <span style="font-weight:bold; color:white; font-size:16px;">{bar_value}</span></div>
+            <div style="background: #333; height: 12px; border-radius: 6px; margin-top: 8px;"><div style="background: {bar_color}; width: 0%; height: 100%; border-radius: 6px;"></div></div>
+        </div>
+    """, unsafe_allow_html=True)
+
+    # 4. Main Grid Split (Left: Watchdog & Actions, Right: Pumps)
     col_left, col_right = st.columns([1.2, 3])
 
     with col_left:
-        st.markdown("<div class='header-title' style='font-size: 14px;'>SYSTEM WATCHDOG</div>", unsafe_allow_html=True)
+        st.markdown("<div class='header-title' style='font-size: 18px; color:white;'>SYSTEM WATCHDOG</div>", unsafe_allow_html=True)
         
-        # ESP32
-        st.markdown("""
-            <div class="panel">
-                <div class="panel-title">ESP32 INTERNAL TEMP</div>
-                <div style="text-align: center; color: #F39C12; font-size: 32px; font-weight: bold;">38°C</div>
-                <div style="text-align: right; color: #F39C12; font-size: 10px; margin-top: 5px;">AMBER</div>
-                <div style="border-bottom: 2px solid #F39C12; margin-top: 5px; margin-bottom: 5px;"></div>
-                <div style="display: flex; justify-content: space-between; font-size: 10px; color: #888;"><span>AMBER WARNING THRESHOLD</span><span>38°C</span></div>
-            </div>
-        """, unsafe_allow_html=True)
+        # --- DATA ENTRY STATUS (Real configuration from Step 4) ---
+        man_status = "ON" if st.session_state.get("use_manual", True) else "OFF"
+        man_color = "#2ECC71" if man_status == "ON" else "#555"
         
-        # MAX6675
-        st.markdown("""
+        voice_status = "ON" if st.session_state.get("use_voice", False) else "OFF"
+        voice_color = "#2ECC71" if voice_status == "ON" else "#555"
+        
+        esp_status = "SYSTEM ACTIVE" if st.session_state.get("use_ocr", False) else "STANDBY"
+        esp_color = "#3498DB" if esp_status == "SYSTEM ACTIVE" else "#555"
+
+        st.markdown(f"""
             <div class="panel">
-                <div class="panel-title">MAX6675/TYPE-K</div>
-                <div style="display: flex; align-items: center; justify-content: center; gap: 15px;">
-                    <span style="color: #2ECC71; font-size: 32px; font-weight: bold;">OK</span>
-                    <div style="text-align: left;"><span style="color:#888; font-size:10px;">SENSOR</span><br><span style="font-size:24px; font-weight:bold;">26.5°C</span></div>
+                <div class="panel-title">DATA ENTRY MODULES</div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                    <span style="color:white; font-size:14px;">Manual Input</span>
+                    <span style="color:{man_color}; font-weight:bold;">{man_status}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                    <span style="color:white; font-size:14px;">Voice Recording</span>
+                    <span style="color:{voice_color}; font-weight:bold;">{voice_status}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; border-top: 1px solid #333; padding-top: 8px;">
+                    <span style="color:white; font-size:14px;">ESP32 CAM</span>
+                    <span style="color:{esp_color}; font-weight:bold;">{esp_status}</span>
                 </div>
             </div>
         """, unsafe_allow_html=True)
         
-        # HIOKI
+        # --- EVENT ALARM LOG ---
         st.markdown("""
-            <div class="panel">
-                <div class="panel-title">HIOKI INTERFACE</div>
-                <div style="text-align: center; color: #E74C3C; font-size: 24px; font-weight: bold; display: flex; align-items: center; justify-content: center; gap: 10px;">
-                    <span style="font-size: 30px;">🚫</span> OFFLINE
-                </div>
+            <div class="panel" style="height: 200px; overflow-y: auto;">
+                <div class="panel-title">EVENT ALARM LOG</div>
+                <div class="event-log-text">SYSTEM IN STANDBY</div>
+                <div class="event-log-text">AWAITING TEST INITIATION...</div>
             </div>
         """, unsafe_allow_html=True)
 
-        if st.button("⬅ Exit Dashboard", use_container_width=True):
+        st.divider()
+
+        # --- ACTION BUTTONS (Icons Removed) ---
+        st.button("Add New Record", use_container_width=True, key="btn_add_record")
+        st.button("Add New Maintenance", use_container_width=True, key="btn_add_maint")
+        st.button("Print Report", use_container_width=True, key="btn_print_report")
+        
+        st.write("")
+        if st.button("Exit Dashboard", use_container_width=True, type="primary"):
             st.session_state.page = "home"
             st.rerun()
 
     with col_right:
-        # Loop through actual saved pumps
+        # Pull actual saved pumps from the Database via active_pumps_df
         if "active_pumps_df" in st.session_state and not st.session_state.active_pumps_df.empty:
-            pumps = st.session_state.active_pumps_df["Pump ID"].tolist()
-            
-            # Create a 3-column grid
             cols = st.columns(3)
-            for i, p_id in enumerate(pumps):
-                # Alternate statuses just to make the UI look alive (Running vs Stopped)
-                is_running = i % 2 == 0 
-                status_color = "value-green" if is_running else "value-grey"
-                light_class = "status-light-run" if is_running else "status-light-stop"
-                current_val = "1.25A" if is_running else "0.00A"
-                svg_color = "#2ECC71" if is_running else "#555"
+            
+            for i, row in st.session_state.active_pumps_df.iterrows():
+                # Extract real data from your dataframe (safely checking both potential column names)
+                p_id = row.get("pump_id", row.get("Pump ID", "Unknown"))
+                amp_max = row.get("amp_max", row.get("Amp Max", 0.0))
                 
-                # SVG Sparkline simulation
-                sparkline = f"""<svg viewBox="0 0 100 20" style="width:100%; height:30px; margin-top:10px;"><polyline fill="none" stroke="{svg_color}" stroke-width="2" points="0,15 10,12 20,16 30,10 40,14 50,8 60,12 70,5 80,10 90,4 100,8" /></svg>"""
+                # Real Case Status: Since the test hasn't started, everything is at zero/standby
+                status_color = "value-grey"
+                light_class = "status-light-stop"
+                current_val = "0.00A"
+                svg_color = "#555"
+                
+                # Flat sparkline indicating 0 current flow
+                sparkline = f"""<svg viewBox="0 0 100 20" style="width:100%; height:30px; margin-top:10px;"><polyline fill="none" stroke="{svg_color}" stroke-width="2" points="0,15 10,15 20,15 30,15 40,15 50,15 60,15 70,15 80,15 90,15 100,15" /></svg>"""
 
                 with cols[i % 3]:
                     st.markdown(f"""
@@ -960,13 +1236,13 @@ elif st.session_state.page == "dashboard":
                             <div class="panel-title">{p_id}</div>
                             <div style="display: flex; justify-content: space-between; align-items: center;">
                                 <div>
-                                    <div style="font-size: 10px; color: #888;">LIVE CURRENT (A)</div>
+                                    <div style="font-size: 10px; color: #888;">LIVE CURRENT (MAX: {amp_max}A)</div>
                                     <div class="{status_color}">{current_val}</div>
                                 </div>
                                 <div style="text-align: center;">
                                     <div style="font-size: 10px; color: #888; margin-bottom: 5px;">STATUS LIGHT</div>
                                     <div class="{light_class}"></div>
-                                    <div style="font-size: 10px; color: {svg_color}; font-weight: bold; margin-top: 3px;">{'RUN' if is_running else 'STOP'}</div>
+                                    <div style="font-size: 10px; color: {svg_color}; font-weight: bold; margin-top: 3px;">STANDBY</div>
                                 </div>
                             </div>
                             <div style="font-size: 10px; color: #888; margin-top: 10px;">SPARKLINE</div>
@@ -977,4 +1253,6 @@ elif st.session_state.page == "dashboard":
         else:
             st.warning("No pump data found for this project. Please modify the project to add pumps.")
 
+# --- FIX: Ensure the wizard only renders on the Create page ---
+elif st.session_state.page == "create":
     render_project_form()

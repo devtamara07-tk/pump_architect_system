@@ -67,7 +67,22 @@ Pump Architect System is a Streamlit-based application for managing, configuring
 #### Step 5: Variable Mapping & Formulas
 	- Map variables to sensors and define custom formulas for calculations.At Custom Formula Builder, the taget pump(s) can be assigned by: Globally (all pumps), per Water Tank(s) (only pumps that were assigned in the specific water tank in step 3), or per pump (each individual pump assigned in step 2)
 #### Step 6: Dashboard & Report Setup
-	- Set up system watchdogs according to the selected Allowed Data Entry Methods and their system status (e.g. ONLINE/OFFLINE, ON/OFF), or specific watchdog set up: Connection Lost, ESP32 Internal Temperature. Safety limits. Envent Alert Log to display date and time of new project start, new record, alerts, etc. in a list format arranged from the newest to the oldest information. The oldest information can be reached by dragging down the cursor. And preview dashboard layout that is in 3x3 format according to the Water Tank assignment in step 3. The dashboard shows Water Tank number and its assigned pumps in 3x3 format. The dashboard for each pump displays according to the selected formula and calculations and the current runnig time in HR or cycle amount.
+	- Set up system watchdogs in a table format, where each row corresponds to a selected Allowed Data Entry Method (Column: Data Entry Method). For each method, the user selects the type of watchdog (ON/OFF, Connection Status(ONLINE/OFFLINE), ESP32 Internal Temperature) from a dropdown menu (Column: Watchdog Type). One allowed Data Entry Method can have multiple Watchdog types. 
+	Once the watchdog is selected, there is a transition to main dashboard in OPEN file function. For example: If Watchdog Manual Input and ON/OFF was input. Then, in the dashboard should show ON
+
+	- Safety limits are displayed in a table, automatically listing all pumps configured in Step 2. For each pump, default values are provided for Max Stator Temperature (based on insulation class) and Max Current (from Step 2). The user can add or edit additional safety limits as needed.
+
+	- The Event Alert Log displays a scrollable, timestamped list of project events (e.g., project start, new record, alerts), ordered from newest to oldest.
+	- The dashboard preview shows a 3x3 grid layout for each water tank (from Step 3), with each tank's assigned pumps displayed in their respective grids. Each pump dashboard displays the selected formulas/calculations and the current running time (in HR or cycles).
+
+	- When the user goest to step 6. The windows goes automatically to the top of the page. 
+
+**Table Initialization Logic:**
+- When using Create New Project, all tables (including watchdogs, safety limits, and event log) are initialized with default/empty data.
+- When using Modify, all tables are restored with the latest saved data for the selected project, including any custom safety limits, event log history, and dashboard assignments.
+
+**Note:**
+You do NOT need to delete architect_system.db unless you are missing columns (e.g., after a schema change). The app will automatically create or migrate columns as needed. Only delete the database if you encounter migration errors or want to reset all data.
 
 
 ### 3. Main Routing & Dashboard

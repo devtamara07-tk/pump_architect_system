@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 import sqlite3
@@ -681,7 +682,10 @@ def render_project_form():
                 st.rerun()
 
     # STEP 6 (DASHBOARD & REPORT SET UP) ---
+
     elif step == 6:
+        # Auto-scroll to top
+        st.markdown("<script>window.scrollTo(0, 0);</script>", unsafe_allow_html=True)
         st.markdown("<div class='step-title'>6. Dashboard and Report Set up</div>", unsafe_allow_html=True)
 
         # --- PREPARE DATA FROM PREVIOUS STEPS ---
@@ -692,7 +696,7 @@ def render_project_form():
             valid_pumps = ["P-01"]
             pumps_df = pd.DataFrame({"Pump ID": ["P-01"], "Amp Max": [10.0]})
 
-        # --- 1. SYSTEM WATCHDOGS (Dynamic) ---
+        # --- 1. SYSTEM WATCHDOGS (Editable Table, Multiple per Method) ---
         st.markdown("<p style='color: white; font-size: 18px; font-weight: bold;'>1. System Watchdogs & Safety Limits</p>", unsafe_allow_html=True)
         allowed_methods = []
         if "hardware_list" in st.session_state:
@@ -700,37 +704,84 @@ def render_project_form():
                 ds_key = f"ds_{hw}"
                 if ds_key in st.session_state:
                     allowed_methods.extend(st.session_state[ds_key])
-        allowed_methods = list(set(allowed_methods))
-        status_map = {m: ("ONLINE" if m in allowed_methods else "OFFLINE") for m in ["Manual Input", "Voice Recording", "ESP32 Pulse", "ESP32 CAM (OCR)"]}
-        st.write("**Allowed Data Entry Methods & Status:**")
-        for m in status_map:
-            st.write(f"- {m}: {status_map[m]}")
-        # Specific watchdogs
-        st.write("**Specific Watchdogs:**")
-        st.write("- Connection Lost: ONLINE")
-        st.write("- ESP32 Internal Temperature: ONLINE")
+        allowed_methods = sorted(list(set(allowed_methods)))
+        if not allowed_methods:
+            allowed_methods = ["Manual Input"]
+        watchdog_types = ["ON/OFF", "Connection Status (ONLINE/OFFLINE)", "ESP32 Internal Temperature"]
 
-        # --- 2. SAFETY LIMITS ---
-        if "limits_df" not in st.session_state:
-            limits = []
-            for _, row in pumps_df.iterrows():
-                limits.append({
-                    "Pump ID": row.get("Pump ID", "Unknown"),
-                    "Max Stator Temp (°C)": 155.0, 
-                    "Max Current (A)": row.get("Amp Max", 0.0), 
-                    "Max Temp Rise (°C)": 115.0 
-                })
-            st.session_state.limits_df = pd.DataFrame(limits)
-        lim_config = {
-            "Pump ID": st.column_config.TextColumn("Pump ID", disabled=True),
-            "Max Stator Temp (°C)": st.column_config.NumberColumn(required=True),
-            "Max Current (A)": st.column_config.NumberColumn(required=True),
-            "Max Temp Rise (°C)": st.column_config.NumberColumn(required=True)
+        # --- Initialization for Create/Modify ---
+        if st.session_state.get("_restoring_project", False):
+            # On Modify, restore tables from DB (already handled in restore logic)
+            pass
+        else:
+            # On Create New Project, initialize empty/default tables
+            if "watchdogs_df" not in st.session_state or st.session_state.page == "create" and st.session_state.get("_new_project", False):
+                st.session_state.watchdogs_df = pd.DataFrame(columns=["Data Entry Method", "Watchdog Type"])
+            if "limits_df" not in st.session_state or st.session_state.page == "create" and st.session_state.get("_new_project", False):
+                limits = []
+                for _, row in pumps_df.iterrows():
+                    insulation = row.get("Insulation", "")
+                    if str(insulation).strip().upper() == "F":
+                        max_stator_temp = 155.0
+                    elif str(insulation).strip().upper() == "H":
+                        max_stator_temp = 180.0
+                    else:
+                        max_stator_temp = 130.0
+                    limits.append({
+                        "Pump ID": row.get("Pump ID", "Unknown"),
+                        "Max Stator Temp (°C)": max_stator_temp,
+                        "Max Current (A)": row.get("Amp Max", 0.0)
+                    })
+                st.session_state.limits_df = pd.DataFrame(limits)
+            if "event_log" not in st.session_state or st.session_state.page == "create" and st.session_state.get("_new_project", False):
+                st.session_state.event_log = []
+
+        # --- Editable Watchdogs Table (Multiple per Method, fully dynamic) ---
+        wd_df = st.session_state.watchdogs_df.copy() if "watchdogs_df" in st.session_state else pd.DataFrame(columns=["Data Entry Method", "Watchdog Type"])
+        col_wd1, col_wd2 = st.columns([3,1])
+        with col_wd2:
+            if st.button("Add Watchdog Row", use_container_width=True, key="add_wd_row"):
+                new_row = {"Data Entry Method": allowed_methods[0], "Watchdog Type": watchdog_types[0]}
+                wd_df = pd.concat([wd_df, pd.DataFrame([new_row])], ignore_index=True)
+                st.session_state.watchdogs_df = wd_df
+                st.experimental_rerun()
+        wd_config = {
+            "Data Entry Method": st.column_config.SelectboxColumn("Data Entry Method", options=allowed_methods, required=True),
+            "Watchdog Type": st.column_config.SelectboxColumn("Watchdog Type", options=watchdog_types, required=True)
         }
-        updated_lim = st.data_editor(st.session_state.limits_df, hide_index=True, use_container_width=True, column_config=lim_config, key="limits_edit")
-        if st.button("Save Safety Limits", use_container_width=True):
-            st.session_state.limits_df = updated_lim
-            st.success("Safety limits updated.")
+        updated_wd = st.data_editor(
+            wd_df,
+            hide_index=True,
+            use_container_width=True,
+            column_config=wd_config,
+            key="watchdogs_edit",
+            num_rows="dynamic"
+        )
+        st.session_state.watchdogs_df = updated_wd
+
+        # --- Editable Safety Limits Table (add/edit/delete) ---
+        lim_df = st.session_state.limits_df.copy() if "limits_df" in st.session_state else pd.DataFrame(columns=["Pump ID", "Max Stator Temp (°C)", "Max Current (A)"])
+        col_lim1, col_lim2 = st.columns([3,1])
+        with col_lim2:
+            if st.button("Add Safety Limit", use_container_width=True, key="add_limit_row"):
+                new_row = {"Pump ID": "", "Max Stator Temp (°C)": 130.0, "Max Current (A)": 0.0}
+                lim_df = pd.concat([lim_df, pd.DataFrame([new_row])], ignore_index=True)
+                st.session_state.limits_df = lim_df
+                st.experimental_rerun()
+        lim_config = {
+            "Pump ID": st.column_config.TextColumn("Pump ID", disabled=False),
+            "Max Stator Temp (°C)": st.column_config.NumberColumn(required=True),
+            "Max Current (A)": st.column_config.NumberColumn(required=True)
+        }
+        updated_lim = st.data_editor(
+            lim_df,
+            hide_index=True,
+            use_container_width=True,
+            column_config=lim_config,
+            key="limits_edit",
+            num_rows="dynamic"
+        )
+        st.session_state.limits_df = updated_lim
 
         st.divider()
 

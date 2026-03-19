@@ -93,14 +93,6 @@ In each step after click Confirmation a confirmation message is shown in white f
 - **Home:** Lists all projects with options to create, open, modify, or delete.
 - **Create New Project:** Starts a new project with all fields and tables (including hardware and sensor mapping) in their default/empty state. No previous data is pre-filled.
 - **Open:** Dashboard displays live status, pump data, and event logs for the selected project.
-
-
-
-
-
-
-
-
 - **Modify:** Returns to the Project Wizard with all information (including all tables and hardware/sensor mapping) restored exactly as last saved. Any changes made and saved will overwrite previous data. Deleted rows or hardware are removed, new entries are added, and all tables reflect the latest saved state. When you use Modify, the wizard always retrieves and displays the most recently saved data for every step, including Step 4 Hardware & Sensor Mapping.
 
 ## Screenshots

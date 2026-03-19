@@ -98,9 +98,19 @@ def inject_industrial_css():
             }
             
             /* Typography & Text Sizes */
-            .step-title { color: white !important; font-size: 2.2rem !important; font-weight: bold !important; margin-bottom: 20px; }
-            .col-header { color: white !important; font-size: 18px !important; font-weight: bold; border-bottom: 2px solid #444; padding-bottom: 10px; text-transform: uppercase; }
+            .step-title { color: #4DA3FF !important; font-size: 2.2rem !important; font-weight: bold !important; margin-bottom: 20px; }
+            .col-header { color: #4DA3FF !important; font-size: 18px !important; font-weight: bold; border-bottom: 2px solid #444; padding-bottom: 10px; text-transform: uppercase; }
             .white-text { color: white !important; font-size: 18px !important; font-weight: 500; margin-top: 8px; }
+
+            /* Title treatment: blue */
+            .header-title, .table-title, .panel-title, h1, h2, h3, h4, h5, h6 {
+                color: #4DA3FF !important;
+            }
+
+            /* Body text treatment: white */
+            p, li, span, div[data-testid="stMarkdownContainer"] p {
+                color: #FFFFFF;
+            }
             
             /* --- INPUT LABELS (Pump Type, Test Type, etc.) --- */
             label p, .stRadio label p, .stTextInput label p, .stNumberInput label p, .stSelectbox label p {
@@ -140,13 +150,34 @@ def inject_industrial_css():
             div[data-testid="stDataEditor"] { background-color: #1C1F24 !important; border: 1px solid #444 !important; font-size: 16px !important; }
             div[data-testid="stTextInput"] input, div[data-testid="stNumberInput"] input { background-color: #1C1F24 !important; color: white !important; border: 1px solid #444 !important; font-size: 16px !important; }
 
-            /* --- THE FINAL WARNING COLOR FIX --- */
-            /* Changes the text of any warning-class paragraph to white */
-            div[data-testid="stMarkdownContainer"] p.stWarning {
-                color: white !important;
+            /* Alerts: replace yellow/red low-contrast with dark panel + white text */
+            div[data-testid="stAlert"] {
+                background-color: #1E293B !important;
+                border: 1px solid #334155 !important;
+                color: #FFFFFF !important;
+            }
+            div[data-testid="stAlert"] p,
+            div[data-testid="stAlert"] span,
+            div[data-testid="stAlert"] div {
+                color: #FFFFFF !important;
             }
         </style>
     """, unsafe_allow_html=True)
+
+def queue_confirmation(message):
+    st.session_state["_queued_confirmation"] = message
+
+def render_confirmation_banner():
+    message = st.session_state.pop("_queued_confirmation", None)
+    if message:
+        st.markdown(
+            (
+                "<div style='background:#1E293B; border:1px solid #334155; color:#FFFFFF; "
+                "padding:10px 12px; border-radius:6px; margin:10px 0; font-size:15px; font-weight:600;'>"
+                f"{message}</div>"
+            ),
+            unsafe_allow_html=True,
+        )
 
 # --- 3. THE WIZARD (FULL STEPS RESTORED) ---
 def render_project_form():
@@ -180,13 +211,23 @@ def render_project_form():
         run_mode = st.radio("Run Mode", r_modes, index=r_modes.index(saved_r_mode) if saved_r_mode in r_modes else 0, horizontal=True)
         st.session_state.run_mode = run_mode
 
-        # 4. TARGET VALUE (Number + Unit)
+        # 4. TARGET VALUE (free text numeric input)
+        if "target_val_input" not in st.session_state:
+            st.session_state.target_val_input = str(st.session_state.get("target_val", "1.0"))
+
+        target_val_text = st.text_input("Target Value", value=st.session_state.target_val_input, key="target_val_input")
+        target_value_valid = True
         try:
-            saved_target = float(st.session_state.get("target_val", 1.0))
-        except:
-            saved_target = 1.0
-        target_val = st.number_input("Target Value", min_value=1.0, value=saved_target)
-        st.session_state.target_val = target_val
+            parsed_target = float(str(target_val_text).strip())
+            if parsed_target <= 0:
+                raise ValueError
+            st.session_state.target_val = parsed_target
+        except (ValueError, TypeError):
+            target_value_valid = False
+            st.markdown(
+                "<p style='color: white; background:#1E293B; border:1px solid #334155; padding:8px; border-radius:6px;'>Please enter a valid positive numeric Target Value.</p>",
+                unsafe_allow_html=True,
+            )
 
         unit_options = ["HR", "Days", "Cycles"]
         saved_unit = st.session_state.get("target_unit", "HR")
@@ -194,13 +235,18 @@ def render_project_form():
         st.session_state.target_unit = target_unit
 
         # 5. PROJECT NAME (auto-generated, displayed at bottom)
-        project_name = f"{proj_type} {test_type} {run_mode} {target_val} {target_unit}"
+        project_name = f"{proj_type} {test_type} {run_mode} {st.session_state.get('target_val', target_val_text)} {target_unit}"
         st.session_state.project_name = project_name
 
         st.markdown(f"<div style='margin-top:20px; color:#0d6efd; font-size:20px; font-weight:bold;'>Project Name: {project_name}</div>", unsafe_allow_html=True)
 
         st.write("")
-        if st.button("Next Step"): st.session_state.wizard_step = 2; st.rerun()
+        if st.button("Next Step"):
+            if target_value_valid:
+                st.session_state.wizard_step = 2
+                st.rerun()
+            else:
+                st.error("Please fix Target Value before continuing.")
 
    # STEP 2: Full Pump Specification
     elif step == 2:
@@ -215,7 +261,7 @@ def render_project_form():
 
         # 2. Wrap the Table in a FORM to stop the vibration
         with st.form("pump_spec_form", clear_on_submit=False):
-            st.markdown("<p style='color: #ffc107;'>⚠️ Type all data, then click 'Confirm Table Entries' below to lock in IDs.</p>", unsafe_allow_html=True)
+            st.markdown("<p style='color: white;'>⚠️ Type all data, then click 'Confirm Table Entries' below to lock in IDs.</p>", unsafe_allow_html=True)
 
             step2_config = {
                 "Pump Model": st.column_config.TextColumn("Pump Model", required=True, default=""),
@@ -251,7 +297,7 @@ def render_project_form():
                     final_df = updated_df.dropna(subset=["Pump Model"]).reset_index(drop=True)
                     final_df["Pump ID"] = [f"P-{str(i+1).zfill(2)}" for i in range(len(final_df))]
                     st.session_state.specs_df = final_df
-                    st.success("Table synced! IDs generated. You can now click Next.")
+                    queue_confirmation("Table synced. Pump IDs generated. You can now click Next.")
                     st.rerun()
 
         # 3. Navigation Buttons (Outside the form)
@@ -306,7 +352,7 @@ def render_project_form():
         st.markdown(
             f"<div style='text-align: left; margin-top: 15px; margin-bottom: 10px;'>"
             f"<span style='color: white; font-size: 22px; font-weight: bold;'>Active Tanks: </span>"
-            f"<span style='color: #4CAF50; font-size: 22px; font-weight: 500;'>{' &nbsp;|&nbsp; '.join(st.session_state.water_tanks)}</span>"
+            f"<span style='color: #4DA3FF; font-size: 22px; font-weight: 500;'>{' &nbsp;|&nbsp; '.join(st.session_state.water_tanks)}</span>"
             f"</div>", 
             unsafe_allow_html=True
         )
@@ -355,7 +401,7 @@ def render_project_form():
             confirm = st.form_submit_button("Confirm Layout Changes", use_container_width=True)
             if confirm:
                 st.session_state.layout_df = updated_layout.reset_index(drop=True)
-                st.success("Layout Mappings Saved!")
+                queue_confirmation("Layout mappings saved.")
                 st.rerun()
 
         # 6. Navigation
@@ -548,7 +594,7 @@ def render_project_form():
                         st.session_state[key] = edited_df
                     for key, selected_ds in updated_ds.items():
                         st.session_state[key] = selected_ds
-                    st.success("All Hardware configurations saved successfully!")
+                    queue_confirmation("All hardware configurations saved.")
                     st.rerun()
 
         # 5. Navigation
@@ -670,7 +716,7 @@ def render_project_form():
             if confirm:
                 st.session_state.var_mapping_df = updated_vars.reset_index(drop=True)
                 st.session_state.formulas_df = updated_forms.reset_index(drop=True)
-                st.success("Variables and Formulas saved securely!")
+                queue_confirmation("Variables and formulas saved.")
                 st.rerun()
 
         # 4. NAVIGATION
@@ -808,7 +854,7 @@ def render_project_form():
 
                 st.session_state.watchdogs_df = pd.DataFrame(expanded, columns=["Data Entry Method", "Watchdog Type"])
                 st.session_state.watchdog_sync_ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                st.success("Watchdog table saved.")
+                queue_confirmation("Watchdog table saved.")
                 st.rerun()
 
         # --- 2. SAFETY LIMITS ---
@@ -920,7 +966,7 @@ def render_project_form():
             if save_limits:
                 st.session_state.limits_df = edited_lim.reset_index(drop=True)
                 st.session_state.extra_limits_df = edited_extra_lim.reset_index(drop=True)
-                st.success("Safety limits saved.")
+                queue_confirmation("Safety limits saved.")
                 st.rerun()
 
         st.divider()
@@ -972,7 +1018,7 @@ def render_project_form():
                     limits_lookup[str(limit_row.get("Pump ID", ""))] = limit_row
 
             for tank in tanks:
-                st.markdown(f"<div style='color:#4CAF50; font-size:20px; font-weight:bold; margin-top:16px;'>Water Tank: {tank}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='color:#4DA3FF; font-size:20px; font-weight:bold; margin-top:16px;'>Water Tank: {tank}</div>", unsafe_allow_html=True)
                 tank_pumps = layout_df[layout_df["Assigned Tank"] == tank]["Pump ID"].tolist() if "Assigned Tank" in layout_df.columns and "Pump ID" in layout_df.columns else []
 
                 if not tank_pumps:
@@ -1070,7 +1116,8 @@ def render_project_form():
             st.warning("No tank or pump layout found. Please complete previous steps.")
 
         if st.button("Confirm Dashboard Visual Layout Preview", use_container_width=True, key="confirm_dashboard_preview"):
-            st.success("Dashboard visual layout preview confirmed.")
+            queue_confirmation("Dashboard visual layout preview confirmed.")
+            st.rerun()
 
         st.divider()
 
@@ -1165,7 +1212,7 @@ def render_project_form():
                     )
                 
                 conn.commit()
-                st.success(f"Project '{project_name}' Successfully Saved!")
+                queue_confirmation(f"Project '{project_name}' successfully saved.")
                 
                 # Cleanup and Go Home
                 for k in ["specs_df", "wizard_step", "proj_type", "test_type", "layout_df", "watchdogs_df", "watchdog_matrix_df", "limits_df", "extra_limits_df", "event_log", "dashboard_main_tracker"]:
@@ -1386,6 +1433,7 @@ def handle_modify_project(project_id):
 # --- 4. MAIN ROUTING & HOME (Original 18px Headers) ---
 init_db()
 inject_industrial_css()
+render_confirmation_banner()
 
 if st.session_state.page == "home":
     st.markdown('<div class="hero-bg"><h1 style="color:white; letter-spacing:2px; font-size:3rem;">PUMP ARCHITECT SYSTEM</h1><p style="color:#aaa; font-size:1.5rem;">Control Center v2.0</p></div>', unsafe_allow_html=True)
@@ -1688,7 +1736,7 @@ elif st.session_state.page == "dashboard":
                     continue
 
                 rendered_any = True
-                st.markdown(f"<div style='color:#4CAF50; font-size:20px; font-weight:bold; margin-top:10px;'>Water Tank: {tank}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='color:#4DA3FF; font-size:20px; font-weight:bold; margin-top:10px;'>Water Tank: {tank}</div>", unsafe_allow_html=True)
 
                 for row_start in range(0, len(tank_pumps), 3):
                     row_pumps = tank_pumps[row_start:row_start+3]

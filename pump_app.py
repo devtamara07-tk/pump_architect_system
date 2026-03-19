@@ -68,6 +68,13 @@ def init_db():
         except sqlite3.OperationalError:
             pass
 
+    # --- MIGRATION: Add Step 6 columns if missing ---
+    for col in ["step6_watchdogs", "step6_limits", "step6_event_log", "watchdog_sync_ts", "step6_extra_limits", "step6_dashboard_tracker"]:
+        try:
+            c.execute(f"ALTER TABLE projects ADD COLUMN {col} TEXT")
+        except sqlite3.OperationalError:
+            pass
+
     conn.commit()
     conn.close()
 
@@ -696,7 +703,7 @@ def render_project_form():
             valid_pumps = ["P-01"]
             pumps_df = pd.DataFrame({"Pump ID": ["P-01"], "Amp Max": [10.0]})
 
-        # --- 1. SYSTEM WATCHDOGS (Editable Table, Multiple per Method) ---
+        # --- 1. SYSTEM WATCHDOGS (One row per method, multiple types per method) ---
         st.markdown("<p style='color: white; font-size: 18px; font-weight: bold;'>1. System Watchdogs & Safety Limits</p>", unsafe_allow_html=True)
         allowed_methods = []
         if "hardware_list" in st.session_state:
@@ -717,6 +724,8 @@ def render_project_form():
             # On Create New Project, initialize empty/default tables
             if "watchdogs_df" not in st.session_state or st.session_state.page == "create" and st.session_state.get("_new_project", False):
                 st.session_state.watchdogs_df = pd.DataFrame(columns=["Data Entry Method", "Watchdog Type"])
+            if "watchdog_matrix_df" not in st.session_state or st.session_state.page == "create" and st.session_state.get("_new_project", False):
+                st.session_state.watchdog_matrix_df = pd.DataFrame()
             if "limits_df" not in st.session_state or st.session_state.page == "create" and st.session_state.get("_new_project", False):
                 limits = []
                 for _, row in pumps_df.iterrows():
@@ -727,61 +736,192 @@ def render_project_form():
                         max_stator_temp = 180.0
                     else:
                         max_stator_temp = 130.0
+                    try:
+                        amp_max = float(row.get("Amp Max", 0.0))
+                    except (ValueError, TypeError):
+                        amp_max = 0.0
                     limits.append({
                         "Pump ID": row.get("Pump ID", "Unknown"),
                         "Max Stator Temp (°C)": max_stator_temp,
-                        "Max Current (A)": row.get("Amp Max", 0.0)
+                        "Max Current (A)": amp_max
                     })
                 st.session_state.limits_df = pd.DataFrame(limits)
+            if "extra_limits_df" not in st.session_state or st.session_state.page == "create" and st.session_state.get("_new_project", False):
+                st.session_state.extra_limits_df = pd.DataFrame(columns=["Formula Name", "Min Value", "Max Value", "Applies To"])
             if "event_log" not in st.session_state or st.session_state.page == "create" and st.session_state.get("_new_project", False):
                 st.session_state.event_log = []
 
-        # --- Editable Watchdogs Table (Multiple per Method, fully dynamic) ---
-        wd_df = st.session_state.watchdogs_df.copy() if "watchdogs_df" in st.session_state else pd.DataFrame(columns=["Data Entry Method", "Watchdog Type"])
-        col_wd1, col_wd2 = st.columns([3,1])
-        with col_wd2:
-            if st.button("Add Watchdog Row", use_container_width=True, key="add_wd_row"):
-                new_row = {"Data Entry Method": allowed_methods[0], "Watchdog Type": watchdog_types[0]}
-                wd_df = pd.concat([wd_df, pd.DataFrame([new_row])], ignore_index=True)
-                st.session_state.watchdogs_df = wd_df
-                st.experimental_rerun()
-        wd_config = {
-            "Data Entry Method": st.column_config.SelectboxColumn("Data Entry Method", options=allowed_methods, required=True),
-            "Watchdog Type": st.column_config.SelectboxColumn("Watchdog Type", options=watchdog_types, required=True)
-        }
-        updated_wd = st.data_editor(
-            wd_df,
-            hide_index=True,
-            use_container_width=True,
-            column_config=wd_config,
-            key="watchdogs_edit",
-            num_rows="dynamic"
-        )
-        st.session_state.watchdogs_df = updated_wd
+        # Build/refresh watchdog matrix from allowed methods + previous selections.
+        existing_selected = {}
+        existing_wd = st.session_state.get("watchdogs_df", pd.DataFrame(columns=["Data Entry Method", "Watchdog Type"]))
+        if isinstance(existing_wd, pd.DataFrame) and not existing_wd.empty:
+            for _, row in existing_wd.iterrows():
+                method = str(row.get("Data Entry Method", "")).strip()
+                wd_type = str(row.get("Watchdog Type", "")).strip()
+                if method and wd_type:
+                    existing_selected.setdefault(method, set()).add(wd_type)
 
-        # --- Editable Safety Limits Table (add/edit/delete) ---
+        matrix_rows = []
+        for method in allowed_methods:
+            selected = existing_selected.get(method, set())
+            matrix_rows.append({
+                "Data Entry Method": method,
+                "ON/OFF": "ON/OFF" in selected,
+                "Connection Status (ONLINE/OFFLINE)": "Connection Status (ONLINE/OFFLINE)" in selected,
+                "ESP32 Internal Temperature": "ESP32 Internal Temperature" in selected,
+            })
+
+        wd_matrix_df = pd.DataFrame(matrix_rows)
+        if "watchdog_matrix_df" not in st.session_state or not isinstance(st.session_state.watchdog_matrix_df, pd.DataFrame):
+            st.session_state.watchdog_matrix_df = wd_matrix_df.copy()
+
+        with st.form("watchdog_setup_form", clear_on_submit=False):
+            st.markdown("<p style='color: #ccc; font-size: 14px;'>Each row maps one allowed Data Entry Method from Step 4. Check one or more watchdogs per row.</p>", unsafe_allow_html=True)
+
+            wd_config = {
+                "Data Entry Method": st.column_config.TextColumn("Data Entry Method", disabled=True),
+                "ON/OFF": st.column_config.CheckboxColumn("ON/OFF"),
+                "Connection Status (ONLINE/OFFLINE)": st.column_config.CheckboxColumn("Connection Status (ONLINE/OFFLINE)"),
+                "ESP32 Internal Temperature": st.column_config.CheckboxColumn("ESP32 Internal Temperature"),
+            }
+            edited_wd_matrix = st.data_editor(
+                wd_matrix_df,
+                hide_index=True,
+                use_container_width=True,
+                column_config=wd_config,
+                key="watchdogs_matrix_edit",
+                num_rows="fixed"
+            )
+
+            save_watchdogs = st.form_submit_button("Confirm Watchdog Setup", use_container_width=True)
+            if save_watchdogs:
+                st.session_state.watchdog_matrix_df = edited_wd_matrix.reset_index(drop=True)
+                expanded = []
+                for _, row in st.session_state.watchdog_matrix_df.iterrows():
+                    method = row.get("Data Entry Method", "")
+                    if row.get("ON/OFF", False):
+                        expanded.append({"Data Entry Method": method, "Watchdog Type": "ON/OFF"})
+                    if row.get("Connection Status (ONLINE/OFFLINE)", False):
+                        expanded.append({"Data Entry Method": method, "Watchdog Type": "Connection Status (ONLINE/OFFLINE)"})
+                    if row.get("ESP32 Internal Temperature", False):
+                        expanded.append({"Data Entry Method": method, "Watchdog Type": "ESP32 Internal Temperature"})
+
+                st.session_state.watchdogs_df = pd.DataFrame(expanded, columns=["Data Entry Method", "Watchdog Type"])
+                st.session_state.watchdog_sync_ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                st.success("Watchdog table saved.")
+                st.rerun()
+
+        # --- 2. SAFETY LIMITS ---
+        st.markdown("<p style='color: white; font-size: 18px; font-weight: bold;'>2. Safety Limits</p>", unsafe_allow_html=True)
+
+        # Sync base limits with current pump list (always rebuild one row per Step 2 pump, then overlay saved edits)
+        current_pump_ids = pumps_df["Pump ID"].tolist() if not pumps_df.empty else []
+        existing_limits = st.session_state.get("limits_df", pd.DataFrame(columns=["Pump ID", "Max Stator Temp (°C)", "Max Current (A)"]))
+        if not isinstance(existing_limits, pd.DataFrame):
+            existing_limits = pd.DataFrame(columns=["Pump ID", "Max Stator Temp (°C)", "Max Current (A)"])
+        for col in ["Pump ID", "Max Stator Temp (°C)", "Max Current (A)"]:
+            if col not in existing_limits.columns:
+                existing_limits[col] = "" if col == "Pump ID" else 0.0
+
+        existing_lookup = {}
+        for _, existing_row in existing_limits.iterrows():
+            pid = existing_row.get("Pump ID", "")
+            if pid:
+                existing_lookup[pid] = existing_row
+
+        rebuilt_limits = []
+        for _, row in pumps_df.iterrows():
+            pid = row.get("Pump ID", "")
+            if not pid:
+                continue
+            ins = row.get("Insulation", "")
+            default_temp = 155.0 if str(ins).strip().upper() == "F" else (180.0 if str(ins).strip().upper() == "H" else 130.0)
+            try:
+                default_amp = float(row.get("Amp Max", 0.0))
+            except (ValueError, TypeError):
+                default_amp = 0.0
+
+            if pid in existing_lookup:
+                saved_row = existing_lookup[pid]
+                max_temp = saved_row.get("Max Stator Temp (°C)", default_temp)
+                max_current = saved_row.get("Max Current (A)", default_amp)
+                if pd.isna(max_temp) or max_temp == "":
+                    max_temp = default_temp
+                if pd.isna(max_current) or max_current == "":
+                    max_current = default_amp
+            else:
+                max_temp = default_temp
+                max_current = default_amp
+
+            rebuilt_limits.append({
+                "Pump ID": pid,
+                "Max Stator Temp (°C)": float(max_temp),
+                "Max Current (A)": float(max_current),
+            })
+
+        st.session_state.limits_df = pd.DataFrame(rebuilt_limits, columns=["Pump ID", "Max Stator Temp (°C)", "Max Current (A)"])
+
+        # Formula names from Step 5 for extra limits dropdown
+        formula_names = []
+        if "formulas_df" in st.session_state and isinstance(st.session_state.formulas_df, pd.DataFrame):
+            if "Formula Name" in st.session_state.formulas_df.columns:
+                formula_names = st.session_state.formulas_df["Formula Name"].dropna().tolist()
+        if not formula_names:
+            formula_names = ["(No formulas defined in Step 5)"]
+
+        # Target options for extra limits (mirrors Step 5)
+        extra_target_options = ["Global (All Pumps)"]
+        if "water_tanks" in st.session_state:
+            extra_target_options += [f"Water Tank: {t}" for t in st.session_state.water_tanks]
+        if "specs_df" in st.session_state and not st.session_state.specs_df.empty:
+            extra_target_options += st.session_state.specs_df["Pump ID"].tolist()
+
         lim_df = st.session_state.limits_df.copy() if "limits_df" in st.session_state else pd.DataFrame(columns=["Pump ID", "Max Stator Temp (°C)", "Max Current (A)"])
-        col_lim1, col_lim2 = st.columns([3,1])
-        with col_lim2:
-            if st.button("Add Safety Limit", use_container_width=True, key="add_limit_row"):
-                new_row = {"Pump ID": "", "Max Stator Temp (°C)": 130.0, "Max Current (A)": 0.0}
-                lim_df = pd.concat([lim_df, pd.DataFrame([new_row])], ignore_index=True)
-                st.session_state.limits_df = lim_df
-                st.experimental_rerun()
-        lim_config = {
-            "Pump ID": st.column_config.TextColumn("Pump ID", disabled=False),
-            "Max Stator Temp (°C)": st.column_config.NumberColumn(required=True),
-            "Max Current (A)": st.column_config.NumberColumn(required=True)
-        }
-        updated_lim = st.data_editor(
-            lim_df,
-            hide_index=True,
-            use_container_width=True,
-            column_config=lim_config,
-            key="limits_edit",
-            num_rows="dynamic"
-        )
-        st.session_state.limits_df = updated_lim
+        extra_lim_df = st.session_state.extra_limits_df.copy() if "extra_limits_df" in st.session_state else pd.DataFrame(columns=["Formula Name", "Min Value", "Max Value", "Applies To"])
+
+        with st.form("limits_setup_form", clear_on_submit=False):
+            # --- Section A: Default per-pump limits ---
+            st.markdown("<p style='color: white; font-size: 15px; font-weight: bold;'>Default Pump Limits</p>", unsafe_allow_html=True)
+            st.markdown("<p style='color: #ccc; font-size: 13px;'>Auto-populated from Step 2. Pump ID is locked. Edit temperature and current thresholds as needed.</p>", unsafe_allow_html=True)
+            base_lim_config = {
+                "Pump ID": st.column_config.TextColumn("Pump ID", disabled=True),
+                "Max Stator Temp (°C)": st.column_config.NumberColumn("Max Stator Temp (°C)", required=True, format="%.1f"),
+                "Max Current (A)": st.column_config.NumberColumn("Max Current (A)", required=True, format="%.2f"),
+            }
+            edited_lim = st.data_editor(
+                lim_df,
+                hide_index=True,
+                use_container_width=True,
+                column_config=base_lim_config,
+                key="limits_base_edit",
+                num_rows="fixed"
+            )
+
+            st.write("")
+            # --- Section B: Additional formula-based limits ---
+            st.markdown("<p style='color: white; font-size: 15px; font-weight: bold;'>Additional Formula Safety Limits</p>", unsafe_allow_html=True)
+            st.markdown("<p style='color: #ccc; font-size: 13px;'>Select a formula from Step 5, set Min (optional) and Max thresholds, and choose which pumps apply. Use the \u271a row button to add entries.</p>", unsafe_allow_html=True)
+            extra_lim_config = {
+                "Formula Name": st.column_config.SelectboxColumn("Formula Name", options=formula_names, required=True),
+                "Min Value": st.column_config.NumberColumn("Min Value (optional)", format="%.2f"),
+                "Max Value": st.column_config.NumberColumn("Max Value", required=True, format="%.2f"),
+                "Applies To": st.column_config.SelectboxColumn("Applies To", options=extra_target_options, required=True),
+            }
+            edited_extra_lim = st.data_editor(
+                extra_lim_df,
+                hide_index=True,
+                use_container_width=True,
+                column_config=extra_lim_config,
+                key="limits_extra_edit",
+                num_rows="dynamic"
+            )
+
+            save_limits = st.form_submit_button("Confirm Safety Limits", use_container_width=True)
+            if save_limits:
+                st.session_state.limits_df = edited_lim.reset_index(drop=True)
+                st.session_state.extra_limits_df = edited_extra_lim.reset_index(drop=True)
+                st.success("Safety limits saved.")
+                st.rerun()
 
         st.divider()
 
@@ -806,31 +946,131 @@ def render_project_form():
 
         # --- 4. DASHBOARD LAYOUT: 3x3 GRID PER TANK ---
         st.markdown("<p style='color: white; font-size: 18px; font-weight: bold;'>3. Dashboard Visual Layout Preview</p>", unsafe_allow_html=True)
+        if "dashboard_main_tracker" not in st.session_state:
+            st.session_state.dashboard_main_tracker = "Temperature"
+
+        st.selectbox(
+            "Main Dashboard Tracker",
+            options=["Temperature", "Current"],
+            index=0 if st.session_state.dashboard_main_tracker == "Temperature" else 1,
+            key="dashboard_main_tracker",
+        )
+
         if "layout_df" in st.session_state and "water_tanks" in st.session_state:
             layout_df = st.session_state.layout_df
             tanks = st.session_state.water_tanks
+            limits_df = st.session_state.get("limits_df", pd.DataFrame(columns=["Pump ID", "Max Stator Temp (°C)", "Max Current (A)"]))
+            extra_limits_df = st.session_state.get("extra_limits_df", pd.DataFrame(columns=["Formula Name", "Min Value", "Max Value", "Applies To"]))
+            is_cycle_test = "Cycle" in st.session_state.get("test_type", "") or "Intermittent" in st.session_state.get("test_type", "") or "Cycle" in st.session_state.get("run_mode", "")
+            target_val = st.session_state.get("target_val", "0")
+            running_time_unit = "cycles" if is_cycle_test else "hrs"
+            running_time_value = f"0 / {target_val} {running_time_unit}"
+
+            limits_lookup = {}
+            if isinstance(limits_df, pd.DataFrame) and not limits_df.empty and "Pump ID" in limits_df.columns:
+                for _, limit_row in limits_df.iterrows():
+                    limits_lookup[str(limit_row.get("Pump ID", ""))] = limit_row
+
             for tank in tanks:
                 st.markdown(f"<div style='color:#4CAF50; font-size:20px; font-weight:bold; margin-top:16px;'>Water Tank: {tank}</div>", unsafe_allow_html=True)
-                tank_pumps = layout_df[layout_df["Assigned Tank"] == tank]["Pump ID"].tolist()
-                rows = [tank_pumps[i:i+3] for i in range(0, len(tank_pumps), 3)]
-                for row in rows:
-                    cols = st.columns(3)
-                    for i, p_id in enumerate(row):
-                        with cols[i]:
-                            # Example: show formulas and running time (placeholder)
-                            st.markdown(f"""
-                                <div style='border: 1px solid #444; padding: 10px; margin-bottom: 10px; border-radius: 5px; background: #1C1F24; text-align: center;'>
-                                    <p style='margin:0; font-weight: bold; color: #3498DB; font-size: 18px;'>{p_id}</p>
-                                    <p style='margin:0; font-size: 14px; color: #2ecc71; font-weight: bold;'>0.00A &nbsp;&nbsp; 🟢 RUN</p>
-                                    <p style='margin:0; font-size: 12px; color: #888;'>Temp: 00.0°C | Rise: 00.0°C</p>
-                                    <p style='margin:0; font-size: 12px; color: #aaa;'>Formula: [calculated]</p>
-                                    <p style='margin:0; font-size: 12px; color: #aaa;'>Running Time: 0 HR / 0 Cycles</p>
-                                </div>
-                            """, unsafe_allow_html=True)
+                tank_pumps = layout_df[layout_df["Assigned Tank"] == tank]["Pump ID"].tolist() if "Assigned Tank" in layout_df.columns and "Pump ID" in layout_df.columns else []
+
                 if not tank_pumps:
                     st.info("No pumps assigned to this tank.")
+                    continue
+
+                for row_start in range(0, len(tank_pumps), 3):
+                    row_pumps = tank_pumps[row_start:row_start+3]
+                    cols = st.columns(3)
+                    for i, p_id in enumerate(row_pumps):
+                        pump_limits = limits_lookup.get(str(p_id))
+                        try:
+                            amp_max = float((pump_limits.get("Max Current (A)") if pump_limits is not None else 0.0) or 0.0)
+                        except (ValueError, TypeError, AttributeError):
+                            amp_max = 0.0
+                        try:
+                            temp_max = float((pump_limits.get("Max Stator Temp (°C)") if pump_limits is not None else 0.0) or 0.0)
+                        except (ValueError, TypeError, AttributeError):
+                            temp_max = 0.0
+
+                        status_color = "value-grey"
+                        light_class = "status-light-stop"
+                        current_val = "0.00A"
+                        temperature_val = "00.0°C"
+                        svg_color = "#555"
+
+                        formula_limits_html = '<div style="font-size: 10px; color: #666; margin-top: 10px;">No additional formula safety limits</div>'
+                        if isinstance(extra_limits_df, pd.DataFrame) and not extra_limits_df.empty and "Applies To" in extra_limits_df.columns:
+                            applicable_limits = []
+                            for _, extra_row in extra_limits_df.iterrows():
+                                applies_to = str(extra_row.get("Applies To", "")).strip()
+                                matches_global = applies_to in ["Global (All Pumps)", "Global (Apply to All Compatible Pumps)"]
+                                matches_pump = applies_to == str(p_id)
+                                matches_tank = applies_to == f"Water Tank: {tank}"
+                                if matches_global or matches_pump or matches_tank:
+                                    formula_name = str(extra_row.get("Formula Name", "Formula")).strip() or "Formula"
+                                    min_val = extra_row.get("Min Value", "")
+                                    max_val = extra_row.get("Max Value", "")
+                                    min_text = "-" if pd.isna(min_val) or min_val == "" else f"{float(min_val):.2f}"
+                                    max_text = "-" if pd.isna(max_val) or max_val == "" else f"{float(max_val):.2f}"
+                                    applicable_limits.append(
+                                        f'<div style="display:flex; justify-content:space-between; font-size:10px; color:#BFC7D5; margin-top:4px;"><span>{formula_name}</span><span>Min {min_text} | Max {max_text}</span></div>'
+                                    )
+                            if applicable_limits:
+                                formula_limits_html = "".join(applicable_limits)
+
+                        if st.session_state.dashboard_main_tracker == "Temperature":
+                            primary_label = f"TEMPERATURE (MAX: {temp_max:.1f}°C)"
+                            primary_val = temperature_val
+                            secondary_label = f"CURRENT (MAX: {amp_max:.2f}A)"
+                            secondary_val = current_val
+                        else:
+                            primary_label = f"LIVE CURRENT (MAX: {amp_max:.2f}A)"
+                            primary_val = current_val
+                            secondary_label = f"TEMPERATURE (MAX: {temp_max:.1f}°C)"
+                            secondary_val = temperature_val
+
+                        sparkline_tracker_label = st.session_state.dashboard_main_tracker.upper()
+                        sparkline = f'<svg viewBox="0 0 100 20" style="width:100%; height:30px; margin-top:10px;"><polyline fill="none" stroke="{svg_color}" stroke-width="2" points="0,15 10,15 20,15 30,15 40,15 50,15 60,15 70,15 80,15 90,15 100,15" /></svg>'
+
+                        with cols[i]:
+                            st.markdown(
+                                '<div class="panel">'
+                                f'<div class="panel-title">{p_id}</div>'
+                                '<div style="display: flex; justify-content: space-between; align-items: center;">'
+                                '<div>'
+                                f'<div style="font-size: 10px; color: #888;">{primary_label}</div>'
+                                f'<div class="{status_color}">{primary_val}</div>'
+                                '</div>'
+                                '<div style="text-align: center;">'
+                                '<div style="font-size: 10px; color: #888; margin-bottom: 5px;">STATUS LIGHT</div>'
+                                f'<div class="{light_class}"></div>'
+                                f'<div style="font-size: 10px; color: {svg_color}; font-weight: bold; margin-top: 3px;">STANDBY</div>'
+                                '</div>'
+                                '</div>'
+                                '<div style="display:flex; justify-content:space-between; gap:12px; margin-top:10px;">'
+                                '<div style="flex:1;">'
+                                f'<div style="font-size:10px; color:#888;">{secondary_label}</div>'
+                                f'<div style="color:#BFC7D5; font-size:18px; font-weight:bold;">{secondary_val}</div>'
+                                '</div>'
+                                '<div style="flex:1; text-align:right;">'
+                                '<div style="font-size:10px; color:#888;">RUNNING TIME</div>'
+                                f'<div style="color:#BFC7D5; font-size:14px; font-weight:bold;">{running_time_value}</div>'
+                                '</div>'
+                                '</div>'
+                                '<div style="font-size: 10px; color: #888; margin-top: 10px;">SPARKLINE</div>'
+                                f'{sparkline}'
+                                f'<div style="display: flex; justify-content: space-between; font-size: 9px; color: #666; margin-top: 5px;"><span>{sparkline_tracker_label}</span><span>10 MINUTES</span></div>'
+                                '<div style="font-size:10px; color:#888; margin-top:12px; border-top:1px solid #2A2D34; padding-top:8px;">ADDITIONAL FORMULA SAFETY LIMITS</div>'
+                                f'{formula_limits_html}'
+                                '</div>',
+                                unsafe_allow_html=True,
+                            )
         else:
             st.warning("No tank or pump layout found. Please complete previous steps.")
+
+        if st.button("Confirm Dashboard Visual Layout Preview", use_container_width=True, key="confirm_dashboard_preview"):
+            st.success("Dashboard visual layout preview confirmed.")
 
         st.divider()
 
@@ -886,8 +1126,20 @@ def render_project_form():
                 hardware_ds_json = json.dumps(hardware_ds)
                 hardware_list_json = json.dumps(hardware_list)
 
-                c.execute("INSERT OR REPLACE INTO projects (project_id, type, test_type, run_mode, target_val, created_at, tanks, layout, hardware_list, hardware_dfs, hardware_ds) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    (project_name, proj_type, test_type, run_mode, target_val, timestamp, tanks_str, layout_json, hardware_list_json, hardware_dfs_json, hardware_ds_json))
+                step6_watchdogs_json = st.session_state.get("watchdogs_df", pd.DataFrame(columns=["Data Entry Method", "Watchdog Type"])).to_json()
+                step6_limits_json = st.session_state.get("limits_df", pd.DataFrame(columns=["Pump ID", "Max Stator Temp (°C)", "Max Current (A)"])).to_json()
+                step6_extra_limits_json = st.session_state.get("extra_limits_df", pd.DataFrame(columns=["Formula Name", "Min Value", "Max Value", "Applies To"])).to_json()
+                step6_event_log_json = json.dumps(st.session_state.get("event_log", []))
+                step6_dashboard_tracker = st.session_state.get("dashboard_main_tracker", "Temperature")
+                watchdog_sync_ts = st.session_state.get("watchdog_sync_ts", timestamp)
+
+                try:
+                    c.execute("ALTER TABLE projects ADD COLUMN watchdog_sync_ts TEXT")
+                except sqlite3.OperationalError:
+                    pass
+
+                c.execute("INSERT OR REPLACE INTO projects (project_id, type, test_type, run_mode, target_val, created_at, tanks, layout, hardware_list, hardware_dfs, hardware_ds, step6_watchdogs, step6_limits, step6_event_log, watchdog_sync_ts, step6_extra_limits, step6_dashboard_tracker) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (project_name, proj_type, test_type, run_mode, target_val, timestamp, tanks_str, layout_json, hardware_list_json, hardware_dfs_json, hardware_ds_json, step6_watchdogs_json, step6_limits_json, step6_event_log_json, watchdog_sync_ts, step6_extra_limits_json, step6_dashboard_tracker))
 
                 # --- Delete old pump records for this project to prevent duplicates ---
                 c.execute("DELETE FROM pumps WHERE project_id = ?", (project_name,))
@@ -916,7 +1168,7 @@ def render_project_form():
                 st.success(f"Project '{project_name}' Successfully Saved!")
                 
                 # Cleanup and Go Home
-                for k in ["specs_df", "wizard_step", "proj_type", "test_type", "layout_df", "watchdogs_df"]: 
+                for k in ["specs_df", "wizard_step", "proj_type", "test_type", "layout_df", "watchdogs_df", "watchdog_matrix_df", "limits_df", "extra_limits_df", "event_log", "dashboard_main_tracker"]:
                     if k in st.session_state: del st.session_state[k]
                 st.session_state.page = "home"
                 st.rerun()
@@ -930,19 +1182,54 @@ def render_project_form():
 def handle_open_project(project_id):
     conn = sqlite3.connect(DB_FILE)
     # 1. Load the core project info
-    proj_row = conn.execute("SELECT project_id, type, test_type, run_mode, target_val, tanks FROM projects WHERE project_id = ?", (project_id,)).fetchone()
+    proj_row = conn.execute("SELECT project_id, type, test_type, run_mode, target_val, tanks, step6_watchdogs, step6_limits, step6_event_log, watchdog_sync_ts, step6_extra_limits, layout, step6_dashboard_tracker FROM projects WHERE project_id = ?", (project_id,)).fetchone()
     
     if proj_row:
         st.session_state.current_project = project_id
-        st.session_state.proj_type = proj_row[0]
-        st.session_state.test_type = proj_row[1]
+        st.session_state.proj_type = proj_row[1]
+        st.session_state.test_type = proj_row[2]
+        st.session_state.run_mode = proj_row[3]
+        st.session_state.target_val = proj_row[4]
+        st.session_state.water_tanks = proj_row[5].split("||") if proj_row[5] else ["Water Tank 1"]
         
         # 2. Load the pumps into the active session
         try:
-            query = "SELECT * FROM pumps WHERE project_name = ?"
+            query = "SELECT * FROM pumps WHERE project_id = ?"
             st.session_state.active_pumps_df = pd.read_sql_query(query, conn, params=(project_id,))
         except:
             st.session_state.active_pumps_df = pd.DataFrame()
+
+        try:
+            st.session_state.layout_df = pd.read_json(proj_row[11]) if len(proj_row) > 11 and proj_row[11] else pd.DataFrame()
+        except Exception:
+            st.session_state.layout_df = pd.DataFrame()
+
+        # 3. Load Step 6 configuration for dashboard display
+        try:
+            st.session_state.watchdogs_df = pd.read_json(proj_row[6]) if proj_row[6] else pd.DataFrame(columns=["Data Entry Method", "Watchdog Type"])
+        except Exception:
+            st.session_state.watchdogs_df = pd.DataFrame(columns=["Data Entry Method", "Watchdog Type"])
+        try:
+            loaded_limits = pd.read_json(proj_row[7]) if proj_row[7] else pd.DataFrame(columns=["Pump ID", "Max Stator Temp (°C)", "Max Current (A)"])
+            if not isinstance(loaded_limits, pd.DataFrame) or loaded_limits.empty and len(loaded_limits.columns) == 0:
+                loaded_limits = pd.DataFrame(columns=["Pump ID", "Max Stator Temp (°C)", "Max Current (A)"])
+            for col in ["Pump ID", "Max Stator Temp (°C)", "Max Current (A)"]:
+                if col not in loaded_limits.columns:
+                    loaded_limits[col] = "" if col == "Pump ID" else 0.0
+            st.session_state.limits_df = loaded_limits[["Pump ID", "Max Stator Temp (°C)", "Max Current (A)"]]
+        except Exception:
+            st.session_state.limits_df = pd.DataFrame(columns=["Pump ID", "Max Stator Temp (°C)", "Max Current (A)"])
+        try:
+            import json
+            st.session_state.event_log = json.loads(proj_row[8]) if proj_row[8] else []
+        except Exception:
+            st.session_state.event_log = []
+        st.session_state.watchdog_sync_ts = proj_row[9] if len(proj_row) > 9 and proj_row[9] else None
+        try:
+            st.session_state.extra_limits_df = pd.read_json(proj_row[10]) if len(proj_row) > 10 and proj_row[10] else pd.DataFrame(columns=["Formula Name", "Min Value", "Max Value", "Applies To"])
+        except Exception:
+            st.session_state.extra_limits_df = pd.DataFrame(columns=["Formula Name", "Min Value", "Max Value", "Applies To"])
+        st.session_state.dashboard_main_tracker = proj_row[12] if len(proj_row) > 12 and proj_row[12] in ["Temperature", "Current"] else "Temperature"
 
         # 3. Switch to Dashboard Page
         st.session_state.page = "dashboard"
@@ -953,7 +1240,7 @@ def handle_open_project(project_id):
 def handle_modify_project(project_id):
     conn = sqlite3.connect(DB_FILE)
     # Fetch all columns for project
-    proj_row = conn.execute("SELECT project_id, type, test_type, run_mode, target_val, tanks, layout, hardware_list, hardware_dfs, hardware_ds FROM projects WHERE project_id = ?", (project_id,)).fetchone()
+    proj_row = conn.execute("SELECT project_id, type, test_type, run_mode, target_val, tanks, layout, hardware_list, hardware_dfs, hardware_ds, step6_watchdogs, step6_limits, step6_event_log, watchdog_sync_ts, step6_extra_limits, step6_dashboard_tracker FROM projects WHERE project_id = ?", (project_id,)).fetchone()
 
 
     if proj_row:
@@ -1050,6 +1337,45 @@ def handle_modify_project(project_id):
         except Exception as e:
             st.warning(f"Could not restore formulas or variable mapping: {e}")
 
+        # --- Step 6: Restore watchdogs, safety limits, and event log ---
+        try:
+            if len(proj_row) > 10 and proj_row[10]:
+                st.session_state.watchdogs_df = pd.read_json(proj_row[10])
+            else:
+                st.session_state.watchdogs_df = pd.DataFrame(columns=["Data Entry Method", "Watchdog Type"])
+        except Exception:
+            st.session_state.watchdogs_df = pd.DataFrame(columns=["Data Entry Method", "Watchdog Type"])
+
+        try:
+            if len(proj_row) > 11 and proj_row[11]:
+                loaded_limits = pd.read_json(proj_row[11])
+            else:
+                loaded_limits = pd.DataFrame(columns=["Pump ID", "Max Stator Temp (°C)", "Max Current (A)"])
+            if not isinstance(loaded_limits, pd.DataFrame) or loaded_limits.empty and len(loaded_limits.columns) == 0:
+                loaded_limits = pd.DataFrame(columns=["Pump ID", "Max Stator Temp (°C)", "Max Current (A)"])
+            for col in ["Pump ID", "Max Stator Temp (°C)", "Max Current (A)"]:
+                if col not in loaded_limits.columns:
+                    loaded_limits[col] = "" if col == "Pump ID" else 0.0
+            st.session_state.limits_df = loaded_limits[["Pump ID", "Max Stator Temp (°C)", "Max Current (A)"]]
+        except Exception:
+            st.session_state.limits_df = pd.DataFrame(columns=["Pump ID", "Max Stator Temp (°C)", "Max Current (A)"])
+
+        try:
+            import json
+            if len(proj_row) > 12 and proj_row[12]:
+                st.session_state.event_log = json.loads(proj_row[12])
+            else:
+                st.session_state.event_log = []
+        except Exception:
+            st.session_state.event_log = []
+
+        st.session_state.watchdog_sync_ts = proj_row[13] if len(proj_row) > 13 and proj_row[13] else None
+        try:
+            st.session_state.extra_limits_df = pd.read_json(proj_row[14]) if len(proj_row) > 14 and proj_row[14] else pd.DataFrame(columns=["Formula Name", "Min Value", "Max Value", "Applies To"])
+        except Exception:
+            st.session_state.extra_limits_df = pd.DataFrame(columns=["Formula Name", "Min Value", "Max Value", "Applies To"])
+        st.session_state.dashboard_main_tracker = proj_row[15] if len(proj_row) > 15 and proj_row[15] in ["Temperature", "Current"] else "Temperature"
+
         # --- Set wizard state and rerun ---
         st.session_state.page = "create"
         st.session_state.wizard_step = 1
@@ -1069,7 +1395,7 @@ if st.session_state.page == "home":
         for k in [
             "project_name", "proj_type", "test_type", "run_mode", "target_val", "target_unit",
             "specs_df", "layout_df", "water_tanks", "hardware_list", "var_mapping_df", "formulas_df",
-            "watchdogs_df", "limits_df", "event_log", "wizard_step", "current_project"
+            "watchdogs_df", "watchdog_matrix_df", "limits_df", "extra_limits_df", "event_log", "wizard_step", "current_project", "dashboard_main_tracker"
         ]:
             if k in st.session_state:
                 del st.session_state[k]
@@ -1212,41 +1538,106 @@ elif st.session_state.page == "dashboard":
 
     with col_left:
         st.markdown("<div class='header-title' style='font-size: 18px; color:white;'>SYSTEM WATCHDOG</div>", unsafe_allow_html=True)
-        
-        # --- DATA ENTRY STATUS (Real configuration from Step 4) ---
-        man_status = "ON" if st.session_state.get("use_manual", True) else "OFF"
-        man_color = "#2ECC71" if man_status == "ON" else "#555"
-        
-        voice_status = "ON" if st.session_state.get("use_voice", False) else "OFF"
-        voice_color = "#2ECC71" if voice_status == "ON" else "#555"
-        
-        esp_status = "SYSTEM ACTIVE" if st.session_state.get("use_ocr", False) else "STANDBY"
-        esp_color = "#3498DB" if esp_status == "SYSTEM ACTIVE" else "#555"
 
+        wd_df = st.session_state.get("watchdogs_df", pd.DataFrame(columns=["Data Entry Method", "Watchdog Type"]))
+        watchdog_rows_html = ""
+        if isinstance(wd_df, pd.DataFrame) and not wd_df.empty:
+            grouped_watchdogs = {}
+            for _, row in wd_df.iterrows():
+                method = str(row.get("Data Entry Method", "-")).strip() or "-"
+                wd_type = str(row.get("Watchdog Type", "-")).strip() or "-"
+                grouped_watchdogs.setdefault(method, [])
+                if wd_type not in grouped_watchdogs[method]:
+                    grouped_watchdogs[method].append(wd_type)
+
+            for method, wd_types in grouped_watchdogs.items():
+                has_conn = "Connection Status (ONLINE/OFFLINE)" in wd_types
+                has_onoff = "ON/OFF" in wd_types
+                has_temp = "ESP32 Internal Temperature" in wd_types
+
+                if has_conn and has_onoff and has_temp:
+                    method_status = "HEALTHY"
+                    method_status_color = "#2ECC71"
+                elif has_conn and has_onoff:
+                    method_status = "READY"
+                    method_status_color = "#2ECC71"
+                elif has_conn:
+                    method_status = "ONLINE"
+                    method_status_color = "#2ECC71"
+                elif has_onoff:
+                    method_status = "LOCAL ONLY"
+                    method_status_color = "#EEDD82"
+                elif has_temp:
+                    method_status = "MONITOR"
+                    method_status_color = "#3498DB"
+                else:
+                    method_status = "UNCONFIGURED"
+                    method_status_color = "#888"
+
+                watchdog_rows_html += (
+                    f"<div style=\"display: flex; justify-content: space-between; align-items: center; margin-top: 8px; margin-bottom: 6px;\">"
+                    f"<span style=\"color:#3498DB; font-size:13px; font-weight:700; text-transform: uppercase;\">{method}</span>"
+                    f"<span style=\"color:{method_status_color}; border: 1px solid {method_status_color}; padding: 2px 8px; border-radius: 999px; font-size:11px; font-weight:700;\">{method_status}</span>"
+                    "</div>"
+                )
+                for wd_type in wd_types:
+                    if wd_type == "ON/OFF":
+                        wd_value = "ON"
+                        wd_color = "#2ECC71"
+                    elif wd_type == "Connection Status (ONLINE/OFFLINE)":
+                        wd_value = "ONLINE"
+                        wd_color = "#2ECC71"
+                    elif wd_type == "ESP32 Internal Temperature":
+                        wd_value = "36.5°C"
+                        wd_color = "#3498DB"
+                    else:
+                        wd_value = "ACTIVE"
+                        wd_color = "#2ECC71"
+
+                    watchdog_rows_html += (
+                        f"<div style=\"display: flex; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px solid #2A2D34; padding-bottom: 6px;\">"
+                        f"<span style=\"color:white; font-size:13px;\">{wd_type}</span>"
+                        f"<span style=\"color:{wd_color}; font-weight:bold;\">{wd_value}</span>"
+                        "</div>"
+                    )
+        else:
+            watchdog_rows_html = (
+                "<div style=\"display: flex; justify-content: space-between; margin-bottom: 8px;\">"
+                "<span style=\"color:white; font-size:14px;\">No watchdog configured</span>"
+                "<span style=\"color:#888; font-weight:bold;\">STANDBY</span>"
+                "</div>"
+            )
+
+        sync_ts = st.session_state.get("watchdog_sync_ts", None)
+        sync_footer = (
+            f"<div style=\"margin-top:10px; padding-top:6px; border-top:1px solid #333; color:#555; font-size:11px;\">Last config sync: {sync_ts}</div>"
+            if sync_ts else
+            "<div style=\"margin-top:10px; padding-top:6px; border-top:1px solid #333; color:#555; font-size:11px;\">Last config sync: not yet saved</div>"
+        )
         st.markdown(f"""
             <div class="panel">
-                <div class="panel-title">DATA ENTRY MODULES</div>
-                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                    <span style="color:white; font-size:14px;">Manual Input</span>
-                    <span style="color:{man_color}; font-weight:bold;">{man_status}</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                    <span style="color:white; font-size:14px;">Voice Recording</span>
-                    <span style="color:{voice_color}; font-weight:bold;">{voice_status}</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; border-top: 1px solid #333; padding-top: 8px;">
-                    <span style="color:white; font-size:14px;">ESP32 CAM</span>
-                    <span style="color:{esp_color}; font-weight:bold;">{esp_status}</span>
-                </div>
+                <div class="panel-title">DATA ENTRY WATCHDOGS</div>
+                {watchdog_rows_html}
+                {sync_footer}
             </div>
         """, unsafe_allow_html=True)
         
         # --- EVENT ALARM LOG ---
-        st.markdown("""
+        event_log = st.session_state.get("event_log", [])
+        event_html = ""
+        if event_log:
+            for entry in event_log[:30]:
+                event_html += f"<div class='event-log-text'>{entry}</div>"
+        else:
+            event_html = (
+                "<div class='event-log-text'>SYSTEM IN STANDBY</div>"
+                "<div class='event-log-text'>AWAITING TEST INITIATION...</div>"
+            )
+
+        st.markdown(f"""
             <div class="panel" style="height: 200px; overflow-y: auto;">
                 <div class="panel-title">EVENT ALARM LOG</div>
-                <div class="event-log-text">SYSTEM IN STANDBY</div>
-                <div class="event-log-text">AWAITING TEST INITIATION...</div>
+                {event_html}
             </div>
         """, unsafe_allow_html=True)
 
@@ -1263,44 +1654,136 @@ elif st.session_state.page == "dashboard":
             st.rerun()
 
     with col_right:
-        # Pull actual saved pumps from the Database via active_pumps_df
         if "active_pumps_df" in st.session_state and not st.session_state.active_pumps_df.empty:
-            cols = st.columns(3)
-            
-            for i, row in st.session_state.active_pumps_df.iterrows():
-                # Extract real data from your dataframe (safely checking both potential column names)
-                p_id = row.get("pump_id", row.get("Pump ID", "Unknown"))
-                amp_max = row.get("amp_max", row.get("Amp Max", 0.0))
-                
-                # Real Case Status: Since the test hasn't started, everything is at zero/standby
-                status_color = "value-grey"
-                light_class = "status-light-stop"
-                current_val = "0.00A"
-                svg_color = "#555"
-                
-                # Flat sparkline indicating 0 current flow
-                sparkline = f"""<svg viewBox="0 0 100 20" style="width:100%; height:30px; margin-top:10px;"><polyline fill="none" stroke="{svg_color}" stroke-width="2" points="0,15 10,15 20,15 30,15 40,15 50,15 60,15 70,15 80,15 90,15 100,15" /></svg>"""
+            limits_df = st.session_state.get("limits_df", pd.DataFrame(columns=["Pump ID", "Max Stator Temp (°C)", "Max Current (A)"]))
+            extra_limits_df = st.session_state.get("extra_limits_df", pd.DataFrame(columns=["Formula Name", "Min Value", "Max Value", "Applies To"]))
+            layout_df = st.session_state.get("layout_df", pd.DataFrame())
+            tanks = st.session_state.get("water_tanks", [])
+            main_tracker = st.session_state.get("dashboard_main_tracker", "Temperature")
 
-                with cols[i % 3]:
-                    st.markdown(f"""
-                        <div class="panel">
-                            <div class="panel-title">{p_id}</div>
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <div>
-                                    <div style="font-size: 10px; color: #888;">LIVE CURRENT (MAX: {amp_max}A)</div>
-                                    <div class="{status_color}">{current_val}</div>
-                                </div>
-                                <div style="text-align: center;">
-                                    <div style="font-size: 10px; color: #888; margin-bottom: 5px;">STATUS LIGHT</div>
-                                    <div class="{light_class}"></div>
-                                    <div style="font-size: 10px; color: {svg_color}; font-weight: bold; margin-top: 3px;">STANDBY</div>
-                                </div>
-                            </div>
-                            <div style="font-size: 10px; color: #888; margin-top: 10px;">SPARKLINE</div>
-                            {sparkline}
-                            <div style="display: flex; justify-content: space-between; font-size: 9px; color: #666; margin-top: 5px;"><span>CURRENT</span><span>10 MINUTES</span></div>
-                        </div>
-                    """, unsafe_allow_html=True)
+            limits_lookup = {}
+            if isinstance(limits_df, pd.DataFrame) and not limits_df.empty and "Pump ID" in limits_df.columns:
+                for _, limit_row in limits_df.iterrows():
+                    limits_lookup[str(limit_row.get("Pump ID", ""))] = limit_row
+
+            active_lookup = {}
+            for _, pump_row in st.session_state.active_pumps_df.iterrows():
+                active_pid = str(pump_row.get("pump_id", pump_row.get("Pump ID", "")))
+                if active_pid:
+                    active_lookup[active_pid] = pump_row
+
+            if not tanks and isinstance(layout_df, pd.DataFrame) and not layout_df.empty and "Assigned Tank" in layout_df.columns:
+                tanks = [t for t in layout_df["Assigned Tank"].dropna().tolist() if str(t).strip()]
+
+            running_time_unit = "cycles" if is_cycle_test else "hrs"
+            running_time_value = f"0 / {target_val} {running_time_unit}"
+
+            rendered_any = False
+            for tank in tanks:
+                tank_pumps = []
+                if isinstance(layout_df, pd.DataFrame) and not layout_df.empty and "Assigned Tank" in layout_df.columns and "Pump ID" in layout_df.columns:
+                    tank_pumps = layout_df[layout_df["Assigned Tank"] == tank]["Pump ID"].tolist()
+
+                if not tank_pumps:
+                    continue
+
+                rendered_any = True
+                st.markdown(f"<div style='color:#4CAF50; font-size:20px; font-weight:bold; margin-top:10px;'>Water Tank: {tank}</div>", unsafe_allow_html=True)
+
+                for row_start in range(0, len(tank_pumps), 3):
+                    row_pumps = tank_pumps[row_start:row_start+3]
+                    cols = st.columns(3)
+                    for i, p_id in enumerate(row_pumps):
+                        p_id = str(p_id)
+                        pump_limits = limits_lookup.get(p_id)
+                        pump_row = active_lookup.get(p_id)
+
+                        try:
+                            amp_from_pump = pump_row.get("amp_max", pump_row.get("Amp Max", 0.0)) if pump_row is not None else 0.0
+                            amp_max = float((pump_limits.get("Max Current (A)") if pump_limits is not None else amp_from_pump) or 0.0)
+                        except (ValueError, TypeError, AttributeError):
+                            amp_max = 0.0
+                        try:
+                            temp_max = float((pump_limits.get("Max Stator Temp (°C)") if pump_limits is not None else 0.0) or 0.0)
+                        except (ValueError, TypeError, AttributeError):
+                            temp_max = 0.0
+
+                        status_color = "value-grey"
+                        light_class = "status-light-stop"
+                        current_val = "0.00A"
+                        temperature_val = "00.0°C"
+                        svg_color = "#555"
+
+                        formula_limits_html = '<div style="font-size: 10px; color: #666; margin-top: 10px;">No additional formula safety limits</div>'
+                        if isinstance(extra_limits_df, pd.DataFrame) and not extra_limits_df.empty and "Applies To" in extra_limits_df.columns:
+                            applicable_limits = []
+                            for _, extra_row in extra_limits_df.iterrows():
+                                applies_to = str(extra_row.get("Applies To", "")).strip()
+                                matches_global = applies_to in ["Global (All Pumps)", "Global (Apply to All Compatible Pumps)"]
+                                matches_pump = applies_to == p_id
+                                matches_tank = applies_to == f"Water Tank: {tank}"
+                                if matches_global or matches_pump or matches_tank:
+                                    formula_name = str(extra_row.get("Formula Name", "Formula")).strip() or "Formula"
+                                    min_val = extra_row.get("Min Value", "")
+                                    max_val = extra_row.get("Max Value", "")
+                                    min_text = "-" if pd.isna(min_val) or min_val == "" else f"{float(min_val):.2f}"
+                                    max_text = "-" if pd.isna(max_val) or max_val == "" else f"{float(max_val):.2f}"
+                                    applicable_limits.append(
+                                        f'<div style="display:flex; justify-content:space-between; font-size:10px; color:#BFC7D5; margin-top:4px;"><span>{formula_name}</span><span>Min {min_text} | Max {max_text}</span></div>'
+                                    )
+                            if applicable_limits:
+                                formula_limits_html = "".join(applicable_limits)
+
+                        if main_tracker == "Temperature":
+                            primary_label = f"TEMPERATURE (MAX: {temp_max:.1f}°C)"
+                            primary_val = temperature_val
+                            secondary_label = f"CURRENT (MAX: {amp_max:.2f}A)"
+                            secondary_val = current_val
+                        else:
+                            primary_label = f"LIVE CURRENT (MAX: {amp_max:.2f}A)"
+                            primary_val = current_val
+                            secondary_label = f"TEMPERATURE (MAX: {temp_max:.1f}°C)"
+                            secondary_val = temperature_val
+
+                        sparkline_tracker_label = main_tracker.upper()
+                        sparkline = f'<svg viewBox="0 0 100 20" style="width:100%; height:30px; margin-top:10px;"><polyline fill="none" stroke="{svg_color}" stroke-width="2" points="0,15 10,15 20,15 30,15 40,15 50,15 60,15 70,15 80,15 90,15 100,15" /></svg>'
+
+                        with cols[i]:
+                            st.markdown(
+                                '<div class="panel">'
+                                f'<div class="panel-title">{p_id}</div>'
+                                '<div style="display: flex; justify-content: space-between; align-items: center;">'
+                                '<div>'
+                                f'<div style="font-size: 10px; color: #888;">{primary_label}</div>'
+                                f'<div class="{status_color}">{primary_val}</div>'
+                                '</div>'
+                                '<div style="text-align: center;">'
+                                '<div style="font-size: 10px; color: #888; margin-bottom: 5px;">STATUS LIGHT</div>'
+                                f'<div class="{light_class}"></div>'
+                                f'<div style="font-size: 10px; color: {svg_color}; font-weight: bold; margin-top: 3px;">STANDBY</div>'
+                                '</div>'
+                                '</div>'
+                                '<div style="display:flex; justify-content:space-between; gap:12px; margin-top:10px;">'
+                                '<div style="flex:1;">'
+                                f'<div style="font-size:10px; color:#888;">{secondary_label}</div>'
+                                f'<div style="color:#BFC7D5; font-size:18px; font-weight:bold;">{secondary_val}</div>'
+                                '</div>'
+                                '<div style="flex:1; text-align:right;">'
+                                '<div style="font-size:10px; color:#888;">RUNNING TIME</div>'
+                                f'<div style="color:#BFC7D5; font-size:14px; font-weight:bold;">{running_time_value}</div>'
+                                '</div>'
+                                '</div>'
+                                '<div style="font-size: 10px; color: #888; margin-top: 10px;">SPARKLINE</div>'
+                                f'{sparkline}'
+                                f'<div style="display: flex; justify-content: space-between; font-size: 9px; color: #666; margin-top: 5px;"><span>{sparkline_tracker_label}</span><span>10 MINUTES</span></div>'
+                                '<div style="font-size:10px; color:#888; margin-top:12px; border-top:1px solid #2A2D34; padding-top:8px;">ADDITIONAL FORMULA SAFETY LIMITS</div>'
+                                f'{formula_limits_html}'
+                                '</div>',
+                                unsafe_allow_html=True,
+                            )
+
+            if not rendered_any:
+                st.warning("No pump layout found for this project. Please modify the project layout in Step 3.")
         else:
             st.warning("No pump data found for this project. Please modify the project to add pumps.")
 

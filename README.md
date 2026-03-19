@@ -67,13 +67,15 @@ Pump Architect System is a Streamlit-based application for managing, configuring
 #### Step 5: Variable Mapping & Formulas
 	- Map variables to sensors and define custom formulas for calculations.At Custom Formula Builder, the taget pump(s) can be assigned by: Globally (all pumps), per Water Tank(s) (only pumps that were assigned in the specific water tank in step 3), or per pump (each individual pump assigned in step 2)
 #### Step 6: Dashboard & Report Setup
-	- Set up system watchdogs in a table format, where each row corresponds to a selected Allowed Data Entry Method (Column: Data Entry Method). For each method, the user selects the type of watchdog (ON/OFF, Connection Status(ONLINE/OFFLINE), ESP32 Internal Temperature) from a dropdown menu (Column: Watchdog Type). One allowed Data Entry Method can have multiple Watchdog types. 
+	- Set up system watchdogs in a table format, where each row corresponds to a selected Allowed Data Entry Method (Column: Data Entry Method). For each method, the user selects the type of watchdog that wants to be displayed (ON/OFF, Connection Status(ONLINE/OFFLINE), ESP32 Internal Temperature) from a dropdown menu (Column: Watchdog Type). One allowed Data Entry Method can have multiple Watchdog types. 
 	Once the watchdog is selected, there is a transition to main dashboard in OPEN file function. For example: If Watchdog Manual Input and ON/OFF was input. Then, in the dashboard should show ON
 
-	- Safety limits are displayed in a table, automatically listing all pumps configured in Step 2. For each pump, default values are provided for Max Stator Temperature (based on insulation class) and Max Current (from Step 2). The user can add or edit additional safety limits as needed.
+	- Safety limits are displayed in a table, automatically listing all pumps configured in Step 2. For each pump, default values are provided for Max Stator Temperature (based on insulation class) and Max Current (from Step 2). The user can add (add button) or edit additional safety limits as needed. The additional safety limits comes from step custom formula builder, formula name. the user will input the formula min (left in blank if no used), and max values and applicable to Target Pumps function like in step 4.
 
 	- The Event Alert Log displays a scrollable, timestamped list of project events (e.g., project start, new record, alerts), ordered from newest to oldest.
-	- The dashboard preview shows a 3x3 grid layout for each water tank (from Step 3), with each tank's assigned pumps displayed in their respective grids. Each pump dashboard displays the selected formulas/calculations and the current running time (in HR or cycles).
+	
+	
+	- The dashboard preview shows a 3x3 grid layout for each water tank (from Step 3), with each tank's assigned pumps displayed in their respective grids. "Main Dashboard Tracker" selectbox added. When Temperature is selected (default): Large primary metric → TEMPERATURE (MAX: X°C) with the big value-grey display。Secondary row → CURRENT (MAX: X.XXA) in smaller text Sparkline footer label → TEMPERATURE / 10 MINUTES. When Current is selected: Large primary metric → LIVE CURRENT (MAX: X.XXA). Secondary row → TEMPERATURE (MAX: X°C). Sparkline footer label → CURRENT / 10 MINUTES. Once the layout is set up. Click confirm Dashboard Visual Layout Preview button.
 
 	- When the user goest to step 6. The windows goes automatically to the top of the page. 
 

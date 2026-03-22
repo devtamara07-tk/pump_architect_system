@@ -34,6 +34,18 @@ def init_db(db_file):
         project_id TEXT PRIMARY KEY, type TEXT, test_type TEXT,
         run_mode TEXT, target_val TEXT, created_at DATETIME, tanks TEXT)''')
 
+    for col_def in [
+        "type TEXT",
+        "test_type TEXT",
+        "run_mode TEXT",
+        "target_val TEXT",
+        "created_at DATETIME",
+    ]:
+        try:
+            c.execute(f"ALTER TABLE projects ADD COLUMN {col_def}")
+        except sqlite3.OperationalError:
+            pass
+
     try:
         c.execute("ALTER TABLE projects ADD COLUMN tanks TEXT")
     except sqlite3.OperationalError:

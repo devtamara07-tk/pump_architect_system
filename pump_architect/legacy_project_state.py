@@ -108,7 +108,11 @@ def handle_open_project(
 ):
     conn = sqlite3.connect(db_file)
     proj_row = conn.execute(
-        "SELECT project_id, type, test_type, run_mode, target_val, tanks, step6_watchdogs, step6_limits, step6_event_log, watchdog_sync_ts, step6_extra_limits, layout, step6_dashboard_tracker, step5_var_mapping, step5_formulas FROM projects WHERE project_id = ?",
+        "SELECT project_id, type, test_type, run_mode, target_val, tanks, "
+        "step6_watchdogs, step6_limits, step6_event_log, watchdog_sync_ts, "
+        "step6_extra_limits, layout, step6_dashboard_tracker, "
+        "step5_var_mapping, step5_formulas "
+        "FROM projects WHERE project_id = ?",
         (project_id,),
     ).fetchone()
 
@@ -127,16 +131,30 @@ def handle_open_project(
             st.session_state.active_pumps_df = pd.DataFrame()
 
         try:
-            st.session_state.layout_df = pd.read_json(proj_row[11]) if len(proj_row) > 11 and proj_row[11] else pd.DataFrame()
+            st.session_state.layout_df = (
+                pd.read_json(proj_row[11])
+                if len(proj_row) > 11 and proj_row[11]
+                else pd.DataFrame()
+            )
         except Exception:
             st.session_state.layout_df = pd.DataFrame()
 
         try:
-            st.session_state.watchdogs_df = pd.read_json(proj_row[6]) if proj_row[6] else pd.DataFrame(columns=["Data Entry Method", "Watchdog Type"])
+            st.session_state.watchdogs_df = (
+                pd.read_json(proj_row[6])
+                if proj_row[6]
+                else pd.DataFrame(columns=["Data Entry Method", "Watchdog Type"])
+            )
         except Exception:
             st.session_state.watchdogs_df = pd.DataFrame(columns=["Data Entry Method", "Watchdog Type"])
         try:
-            loaded_limits = pd.read_json(proj_row[7]) if proj_row[7] else pd.DataFrame(columns=["Pump ID", "Max Stator Temp (°C)", "Max Current (A)"])
+            loaded_limits = (
+                pd.read_json(proj_row[7])
+                if proj_row[7]
+                else pd.DataFrame(
+                    columns=["Pump ID", "Max Stator Temp (°C)", "Max Current (A)"]
+                )
+            )
             if not isinstance(loaded_limits, pd.DataFrame) or loaded_limits.empty and len(loaded_limits.columns) == 0:
                 loaded_limits = pd.DataFrame(columns=["Pump ID", "Max Stator Temp (°C)", "Max Current (A)"])
             for col in ["Pump ID", "Max Stator Temp (°C)", "Max Current (A)"]:
@@ -151,7 +169,13 @@ def handle_open_project(
             st.session_state.event_log = []
         st.session_state.watchdog_sync_ts = proj_row[9] if len(proj_row) > 9 and proj_row[9] else None
         try:
-            st.session_state.extra_limits_df = pd.read_json(proj_row[10]) if len(proj_row) > 10 and proj_row[10] else pd.DataFrame(columns=["Formula Name", "Min Value", "Max Value", "Applies To"])
+            st.session_state.extra_limits_df = (
+                pd.read_json(proj_row[10])
+                if len(proj_row) > 10 and proj_row[10]
+                else pd.DataFrame(
+                    columns=["Formula Name", "Min Value", "Max Value", "Applies To"]
+                )
+            )
         except Exception:
             st.session_state.extra_limits_df = pd.DataFrame(columns=["Formula Name", "Min Value", "Max Value", "Applies To"])
         st.session_state.dashboard_main_tracker = proj_row[12] if len(proj_row) > 12 and proj_row[12] in ["Temperature", "Current"] else "Temperature"
@@ -167,7 +191,11 @@ def handle_open_project(
 def handle_modify_project(db_file, project_id, restore_project_formula_state):
     conn = sqlite3.connect(db_file)
     proj_row = conn.execute(
-        "SELECT project_id, type, test_type, run_mode, target_val, tanks, layout, hardware_list, hardware_dfs, hardware_ds, step6_watchdogs, step6_limits, step6_event_log, watchdog_sync_ts, step6_extra_limits, step6_dashboard_tracker, step5_var_mapping, step5_formulas FROM projects WHERE project_id = ?",
+        "SELECT project_id, type, test_type, run_mode, target_val, tanks, "
+        "layout, hardware_list, hardware_dfs, hardware_ds, step6_watchdogs, "
+        "step6_limits, step6_event_log, watchdog_sync_ts, step6_extra_limits, "
+        "step6_dashboard_tracker, step5_var_mapping, step5_formulas "
+        "FROM projects WHERE project_id = ?",
         (project_id,),
     ).fetchone()
 
@@ -229,7 +257,19 @@ def handle_modify_project(db_file, project_id, restore_project_formula_state):
             query = "SELECT * FROM pumps WHERE project_id = ?"
             pumps_df = pd.read_sql_query(query, conn, params=(project_id,))
             if not pumps_df.empty:
-                keep_cols = ["Pump Model", "Pump ID", "ISO No.", "HP", "kW", "Voltage (V)", "Amp Min", "Amp Max", "Phase", "Hertz", "Insulation"]
+                keep_cols = [
+                    "Pump Model",
+                    "Pump ID",
+                    "ISO No.",
+                    "HP",
+                    "kW",
+                    "Voltage (V)",
+                    "Amp Min",
+                    "Amp Max",
+                    "Phase",
+                    "Hertz",
+                    "Insulation",
+                ]
                 if "pump_id" in pumps_df.columns:
                     pumps_df = pumps_df.rename(columns={"pump_id": "Pump ID"})
                 for col in keep_cols:
@@ -276,7 +316,13 @@ def handle_modify_project(db_file, project_id, restore_project_formula_state):
 
         st.session_state.watchdog_sync_ts = proj_row[13] if len(proj_row) > 13 and proj_row[13] else None
         try:
-            st.session_state.extra_limits_df = pd.read_json(proj_row[14]) if len(proj_row) > 14 and proj_row[14] else pd.DataFrame(columns=["Formula Name", "Min Value", "Max Value", "Applies To"])
+            st.session_state.extra_limits_df = (
+                pd.read_json(proj_row[14])
+                if len(proj_row) > 14 and proj_row[14]
+                else pd.DataFrame(
+                    columns=["Formula Name", "Min Value", "Max Value", "Applies To"]
+                )
+            )
         except Exception:
             st.session_state.extra_limits_df = pd.DataFrame(columns=["Formula Name", "Min Value", "Max Value", "Applies To"])
         st.session_state.dashboard_main_tracker = proj_row[15] if len(proj_row) > 15 and proj_row[15] in ["Temperature", "Current"] else "Temperature"

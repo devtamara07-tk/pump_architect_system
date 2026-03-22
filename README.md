@@ -55,7 +55,7 @@ pip install -r requirements.txt
 ## Running the app
 
 ```bash
-streamlit run pump_architect/app.py
+streamlit run pump_app.py
 ```
 
 Open the URL shown in the terminal (usually `http://localhost:8501`) in your

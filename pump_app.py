@@ -27,6 +27,7 @@ from pump_architect import legacy_phase56_utils
 from pump_architect import legacy_record_save_utils
 from pump_architect import legacy_add_record_wizard
 from pump_architect import legacy_project_form
+from pump_architect import legacy_router
 
 current_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -428,7 +429,14 @@ init_db()
 inject_industrial_css()
 render_confirmation_banner()
 
-if st.session_state.page == "home":
+simple_page_handled = legacy_router.route_simple_pages(
+    st.session_state.page,
+    render_project_form,
+    render_add_record_wizard,
+    render_add_maintenance_wizard,
+)
+
+if not simple_page_handled and st.session_state.page == "home":
     st.markdown('<div class="hero-bg"><h1 style="color:white; letter-spacing:2px; font-size:3rem;">PUMP ARCHITECT SYSTEM</h1><p style="color:#aaa; font-size:1.5rem;">Control Center v2.0</p></div>', unsafe_allow_html=True)
     
     if st.button("Create New Project"):
@@ -515,16 +523,7 @@ if st.session_state.page == "home":
                 st.session_state[confirm_key] = True
                 st.rerun()
 
-elif st.session_state.page == "create":
-    render_project_form()
-
-elif st.session_state.page == "add_record":
-    render_add_record_wizard()
-
-elif st.session_state.page == "add_maintenance":
-    render_add_maintenance_wizard()
-
-elif st.session_state.page == "dashboard":
+elif not simple_page_handled and st.session_state.page == "dashboard":
     # 1. Custom CSS for the dark industrial look (No Icons)
     st.markdown("""
         <style>
@@ -1098,7 +1097,3 @@ elif st.session_state.page == "dashboard":
                 st.warning("No pump layout found for this project. Please modify the project layout in Step 3.")
         else:
             st.warning("No pump data found for this project. Please modify the project to add pumps.")
-
-# --- FIX: Ensure the wizard only renders on the Create page ---
-elif st.session_state.page == "create":
-    render_project_form()

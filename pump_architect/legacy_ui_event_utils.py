@@ -10,7 +10,16 @@ def inject_industrial_css():
     st.markdown("""
         <style>
             /* Main Background */
-            .main { background-color: #121417; color: #E0E0E0; }
+            html, body, [data-testid="stAppViewContainer"], .stApp, .main {
+                background-color: #121417 !important;
+                color: #E0E0E0;
+            }
+            [data-testid="stMainBlockContainer"] {
+                background-color: transparent !important;
+            }
+            [data-testid="stSidebar"] {
+                background-color: #0F1115 !important;
+            }
             [data-testid="stHeader"] { background: rgba(0,0,0,0); }
 
             /* Hero Section */

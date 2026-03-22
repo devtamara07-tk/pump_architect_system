@@ -93,3 +93,91 @@ def ensure_default_pump_readings(pump_ids, status_grid, pump_readings, previous_
                 "status": status,
             }
     return pump_readings
+
+
+def process_phase4_confirmation(
+    temp_tables,
+    clamp_tables,
+    fallback_temp_values,
+    fallback_clamp_values,
+    fallback_temp_pumps,
+    fallback_clamp_pumps,
+    pump_ids,
+    status_grid,
+    previous_readings,
+    pump_readings,
+    safe_float_fn,
+    aggregate_temperature_for_pump_fn,
+):
+    errors = []
+    temp_tables_payload = {}
+    clamp_tables_payload = {}
+    temp_candidates = {}
+    current_candidates = {}
+
+    for hw_name, edited_df in temp_tables.items():
+        temp_tables_payload[hw_name] = edited_df.to_dict("records")
+        for _, row in edited_df.iterrows():
+            pump_id = str(row.get("Pump ID", "")).strip()
+            status = str(row.get("Status", "STANDBY")).upper()
+            reading = row.get("Reading (C)")
+            if pump_id and status in ["RUNNING", "STANDBY", "PAUSED"]:
+                if reading != reading:
+                    errors.append(f"{hw_name} {row.get('CH', '')} for {pump_id}: temperature is required.")
+                    continue
+                temp_candidates.setdefault(pump_id, []).append({
+                    "measurement_type": row.get("Measurement Type", "Exact"),
+                    "value": float(reading),
+                })
+
+    for pid, _ in fallback_temp_pumps:
+        temp_candidates.setdefault(pid, []).append({
+            "measurement_type": "Exact",
+            "value": safe_float_fn(fallback_temp_values.get(pid), 0.0),
+        })
+
+    for hw_name, edited_df in clamp_tables.items():
+        clamp_tables_payload[hw_name] = edited_df.to_dict("records")
+        for _, row in edited_df.iterrows():
+            pump_id = str(row.get("Pump ID", "")).strip()
+            status = str(row.get("Status", "STANDBY")).upper()
+            reading = row.get("Reading (A)")
+            if not pump_id:
+                continue
+            if status == "RUNNING":
+                if reading != reading:
+                    errors.append(f"{hw_name} {pump_id}: current is required.")
+                    continue
+                current_candidates.setdefault(pump_id, []).append(float(reading))
+            elif status in ["STANDBY", "PAUSED"]:
+                current_candidates.setdefault(pump_id, []).append(0.0)
+
+    for pid in fallback_clamp_pumps:
+        current_candidates.setdefault(pid, []).append(safe_float_fn(fallback_clamp_values.get(pid), 0.0))
+
+    if errors:
+        return errors, temp_tables_payload, clamp_tables_payload, pump_readings
+
+    for pid in pump_ids:
+        status = str(status_grid.get(pid, {}).get("status", "STANDBY")).upper()
+        if status == "FAILED":
+            pump_readings[pid] = {"temp": None, "amps": None, "status": status}
+            continue
+
+        derived_temp = aggregate_temperature_for_pump_fn(temp_candidates.get(pid, []))
+        if derived_temp is None:
+            derived_temp = safe_float_fn(previous_readings.get(pid, {}).get("temp"), 0.0)
+
+        if status in ["STANDBY", "PAUSED"]:
+            derived_amps = 0.0
+        else:
+            current_values = current_candidates.get(pid, [])
+            derived_amps = max(current_values) if current_values else safe_float_fn(previous_readings.get(pid, {}).get("amps"), 0.0)
+
+        pump_readings[pid] = {
+            "temp": float(derived_temp),
+            "amps": float(derived_amps),
+            "status": status,
+        }
+
+    return errors, temp_tables_payload, clamp_tables_payload, pump_readings

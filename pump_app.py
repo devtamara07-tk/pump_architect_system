@@ -15,6 +15,7 @@ from pump_architect.legacy_formula_utils import (
     build_formula_variables_for_pump,
     evaluate_formula_for_pump,
 )
+from pump_architect import legacy_db_utils
 
 current_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -235,44 +236,10 @@ def render_confirmation_banner():
         )
 
 def get_project_records(project_id):
-    conn = sqlite3.connect(DB_FILE)
-    rows = conn.execute(
-        """
-        SELECT id, project_id, record_phase, record_ts, method, ambient_temp,
-               tank_temps_json, status_grid_json, pump_readings_json, alarms_json,
-               ack_alarm, created_at
-        FROM project_records
-        WHERE project_id = ?
-        ORDER BY datetime(record_ts) DESC, id DESC
-        """,
-        (project_id,),
-    ).fetchall()
-    conn.close()
-    cols = [
-        "id", "project_id", "record_phase", "record_ts", "method", "ambient_temp",
-        "tank_temps_json", "status_grid_json", "pump_readings_json", "alarms_json",
-        "ack_alarm", "created_at"
-    ]
-    return pd.DataFrame(rows, columns=cols) if rows else pd.DataFrame(columns=cols)
+    return legacy_db_utils.get_project_records(DB_FILE, project_id)
 
 def get_latest_record(project_id):
-    records_df = get_project_records(project_id)
-    if records_df.empty:
-        return None
-    latest = records_df.iloc[0].to_dict()
-    try:
-        latest["status_grid"] = json.loads(latest.get("status_grid_json") or "{}")
-    except Exception:
-        latest["status_grid"] = {}
-    try:
-        latest["pump_readings"] = json.loads(latest.get("pump_readings_json") or "{}")
-    except Exception:
-        latest["pump_readings"] = {}
-    try:
-        latest["alarms"] = json.loads(latest.get("alarms_json") or "[]")
-    except Exception:
-        latest["alarms"] = []
-    return latest
+    return legacy_db_utils.get_latest_record(DB_FILE, project_id)
 
 def build_phase4_hardware_plan(pump_ids, status_grid):
     temp_units = []
@@ -333,31 +300,13 @@ def build_phase4_hardware_plan(pump_ids, status_grid):
     return temp_units, clamp_units
 
 def has_baseline_record(project_id):
-    conn = sqlite3.connect(DB_FILE)
-    row = conn.execute(
-        "SELECT COUNT(*) FROM project_records WHERE project_id = ? AND record_phase = ?",
-        (project_id, "Baseline Calibration (Cold State)"),
-    ).fetchone()
-    conn.close()
-    return bool(row and row[0] > 0)
+    return legacy_db_utils.has_baseline_record(DB_FILE, project_id)
 
 def clear_project_records(project_id):
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM project_records WHERE project_id = ?", (project_id,))
-    deleted_rows = cursor.rowcount if cursor.rowcount is not None else 0
-    conn.commit()
-    conn.close()
-    return deleted_rows
+    return legacy_db_utils.clear_project_records(DB_FILE, project_id)
 
 def clear_project_maintenance_events(project_id):
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM maintenance_events WHERE project_id = ?", (project_id,))
-    deleted_rows = cursor.rowcount if cursor.rowcount is not None else 0
-    conn.commit()
-    conn.close()
-    return deleted_rows
+    return legacy_db_utils.clear_project_maintenance_events(DB_FILE, project_id)
 
 def restore_project_formula_state(project_id):
     default_var_mapping = pd.DataFrame(columns=["Variable", "Mapped Sensor"])
@@ -524,23 +473,7 @@ def restore_project_hardware_state(project_id):
         pass
 
 def get_maintenance_events(project_id):
-    conn = sqlite3.connect(DB_FILE)
-    rows = conn.execute(
-        """
-         SELECT id, project_id, event_ts, affected_pumps_json, event_type, severity,
-             maintenance_status, action_taken, notes, source_record_id, created_at
-        FROM maintenance_events
-        WHERE project_id = ?
-        ORDER BY datetime(event_ts) DESC, id DESC
-        """,
-        (project_id,),
-    ).fetchall()
-    conn.close()
-    cols = [
-        "id", "project_id", "event_ts", "affected_pumps_json", "event_type", "severity",
-        "maintenance_status", "action_taken", "notes", "source_record_id", "created_at"
-    ]
-    return pd.DataFrame(rows, columns=cols) if rows else pd.DataFrame(columns=cols)
+    return legacy_db_utils.get_maintenance_events(DB_FILE, project_id)
 
 def render_add_maintenance_wizard():
     inject_industrial_css()

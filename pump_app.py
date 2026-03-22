@@ -1,45 +1,21 @@
 
 import streamlit as st
-import pandas as pd
-import sqlite3
-import datetime
-import json
 from pump_architect.legacy_formula_utils import (
     parse_ts,
-    safe_float,
-    aggregate_temperature_for_pump,
-    evaluate_math_expression,
-    get_formula_target_specificity,
-    get_sensor_assignment,
-    get_sensor_hardware,
-    build_formula_variables_for_pump,
-    evaluate_formula_for_pump,
 )
 from pump_architect import legacy_db_utils
 from pump_architect import legacy_ui_event_utils
 from pump_architect import legacy_state_utils
 from pump_architect import legacy_maintenance_wizard
-from pump_architect import legacy_add_record_setup
-from pump_architect import legacy_phase2_utils
-from pump_architect import legacy_record_phases
-from pump_architect import legacy_phase4_utils
-from pump_architect import legacy_phase56_utils
-from pump_architect import legacy_record_save_utils
 from pump_architect import legacy_add_record_wizard
 from pump_architect import legacy_project_form
 from pump_architect import legacy_pages
 from pump_architect import legacy_project_state
 
-current_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
 # --- 1. INITIALIZATION & DATABASE ---
 DB_FILE = "architect_system.db"
 
-# --- ADD THIS LINE EXACTLY HERE ---
 st.set_page_config(page_title="Pump Architect", layout="wide")
-# ---------------------------------
-# --- 1. INITIALIZATION & DATABASE ---
-DB_FILE = "architect_system.db"
 
 def init_db():
     return legacy_project_state.init_db(DB_FILE)

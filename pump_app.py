@@ -27,9 +27,7 @@ from pump_architect import legacy_phase56_utils
 from pump_architect import legacy_record_save_utils
 from pump_architect import legacy_add_record_wizard
 from pump_architect import legacy_project_form
-from pump_architect import legacy_router
-from pump_architect import legacy_home_page
-from pump_architect import legacy_dashboard_page
+from pump_architect import legacy_pages
 
 current_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -431,7 +429,7 @@ init_db()
 inject_industrial_css()
 render_confirmation_banner()
 
-simple_page_handled = legacy_router.route_simple_pages(
+simple_page_handled = legacy_pages.route_simple_pages(
     st.session_state.page,
     render_project_form,
     render_add_record_wizard,
@@ -439,14 +437,14 @@ simple_page_handled = legacy_router.route_simple_pages(
 )
 
 if not simple_page_handled and st.session_state.page == "home":
-    legacy_home_page.render_home_page(
+    legacy_pages.render_home_page(
         DB_FILE,
         handle_open_project,
         handle_modify_project,
     )
 
 elif not simple_page_handled and st.session_state.page == "dashboard":
-    legacy_dashboard_page.render_dashboard_page(
+    legacy_pages.render_dashboard_page(
         DB_FILE,
         get_latest_record,
         get_project_records,

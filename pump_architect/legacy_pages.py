@@ -2,6 +2,24 @@ import sqlite3
 
 import streamlit as st
 
+from pump_architect import legacy_dashboard_page
+
+
+def route_simple_pages(page, render_project_form, render_add_record_wizard, render_add_maintenance_wizard):
+    if page == "create":
+        render_project_form()
+        return True
+
+    if page == "add_record":
+        render_add_record_wizard()
+        return True
+
+    if page == "add_maintenance":
+        render_add_maintenance_wizard()
+        return True
+
+    return False
+
 
 def render_home_page(db_file, handle_open_project, handle_modify_project):
     st.markdown('<div class="hero-bg"><h1 style="color:white; letter-spacing:2px; font-size:3rem;">PUMP ARCHITECT SYSTEM</h1><p style="color:#aaa; font-size:1.5rem;">Control Center v2.0</p></div>', unsafe_allow_html=True)
@@ -74,3 +92,29 @@ def render_home_page(db_file, handle_open_project, handle_modify_project):
             if c[6].button("Delete", key=f"d{idx}", use_container_width=True):
                 st.session_state[confirm_key] = True
                 st.rerun()
+
+
+def render_dashboard_page(
+    db_file,
+    get_latest_record,
+    get_project_records,
+    get_maintenance_events,
+    build_dashboard_report_csv,
+    add_event_log_entry,
+    persist_event_log_for_project,
+    clear_project_records,
+    clear_project_maintenance_events,
+    queue_confirmation,
+):
+    return legacy_dashboard_page.render_dashboard_page(
+        db_file,
+        get_latest_record,
+        get_project_records,
+        get_maintenance_events,
+        build_dashboard_report_csv,
+        add_event_log_entry,
+        persist_event_log_for_project,
+        clear_project_records,
+        clear_project_maintenance_events,
+        queue_confirmation,
+    )

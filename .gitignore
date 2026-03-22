@@ -1,0 +1,30 @@
+# Runtime database – created automatically by the app on first run
+architect_system.db
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Streamlit secrets (may contain credentials)
+.streamlit/secrets.toml
+
+# IDE / editor
+.vscode/settings.json
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

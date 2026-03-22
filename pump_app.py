@@ -21,6 +21,7 @@ from pump_architect import legacy_state_utils
 from pump_architect import legacy_maintenance_wizard
 from pump_architect import legacy_add_record_setup
 from pump_architect import legacy_phase2_utils
+from pump_architect import legacy_record_phases
 
 current_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -247,34 +248,7 @@ def render_add_record_wizard():
     pump_ids = legacy_add_record_setup.build_pump_ids(pumps_df)
     pump_tank_lookup = legacy_add_record_setup.load_layout_and_pump_tank_lookup(DB_FILE, project_id)
 
-    # Phase 1
-    st.markdown("<p class='col-header'>Phase 1: Initialization & Pre-Flight Checks</p>", unsafe_allow_html=True)
-    selected_phase = st.radio(
-        "Select Record Phase",
-        ["Baseline Calibration (Cold State)", "Routine/Daily Record"],
-        index=0 if draft.get("record_phase") == "Baseline Calibration (Cold State)" else 1,
-        horizontal=True,
-        key="add_record_phase_radio",
-    )
-    draft["record_phase"] = selected_phase
-
-    can_continue_phase1 = True
-    if selected_phase == "Routine/Daily Record" and not baseline_exists:
-        can_continue_phase1 = False
-        st.error("ERROR: No baseline found. Complete Baseline Calibration first.")
-    if selected_phase == "Baseline Calibration (Cold State)" and baseline_exists:
-        st.warning("WARNING: Overwriting existing baseline.")
-
-    if st.button("Confirm Record Phase", use_container_width=True, key="confirm_record_phase"):
-        if can_continue_phase1:
-            draft["phase1_confirmed"] = True
-            draft["phase2_confirmed"] = False
-            draft["phase3_confirmed"] = False
-            draft["phase4_confirmed"] = False
-            queue_confirmation("Record phase confirmed.")
-            st.rerun()
-
-    if not draft.get("phase1_confirmed", False):
+    if not legacy_record_phases.render_phase1(draft, baseline_exists, queue_confirmation):
         return
 
     # Phase 2
@@ -340,59 +314,21 @@ def render_add_record_wizard():
         if not ts_valid:
             st.error("Fix timestamp issues before confirming Phase 2.")
         else:
-            errors = []
-            maintenance_candidates = []
-            computed_grid = {}
-            for _, row in edited_status_df.iterrows():
-                pid = str(row.get("Pump ID", "")).strip()
-                prev_status = str(row.get("Previous Status", "STANDBY")).upper()
-                new_status = str(row.get("New Status", prev_status)).upper()
-                prev_acc = float(row.get("Accumulated Time (hrs)", 0.0) or 0.0)
-                failure_ts_text = str(row.get("Failure DateTime (YYYY-MM-DD HH:MM:SS)", "")).strip()
-                added_hours = 0.0
-
-                if draft["record_phase"] == "Baseline Calibration (Cold State)":
-                    new_status = "STANDBY"
-                    added_hours = 0.0
-                elif prev_status == "RUNNING" and new_status == "RUNNING":
-                    added_hours = global_delta
-                elif prev_status in ["STANDBY", "PAUSED", "FAILED"] and new_status == prev_status:
-                    added_hours = 0.0
-                elif prev_status == "STANDBY" and new_status == "RUNNING":
-                    added_hours = 0.0
-                elif prev_status == "RUNNING" and new_status in ["PAUSED", "FAILED"]:
-                    if not failure_ts_text:
-                        errors.append(f"{pid}: failure datetime is required for RUNNING -> {new_status}.")
-                    else:
-                        try:
-                            failure_ts = parse_ts(failure_ts_text)
-                            if last_ts is None:
-                                errors.append(f"{pid}: cannot calculate micro-delta without a previous record.")
-                            elif failure_ts < last_ts or failure_ts > record_ts:
-                                errors.append(f"{pid}: failure datetime must be between last record and current record timestamp.")
-                            else:
-                                added_hours = (failure_ts - last_ts).total_seconds() / 3600.0
-                                maintenance_candidates.append(pid)
-                        except Exception:
-                            errors.append(f"{pid}: invalid failure datetime format.")
-                else:
-                    added_hours = 0.0
-
-                computed_grid[pid] = {
-                    "status": new_status,
-                    "prev_status": prev_status,
-                    "acc_hours_prev": round(prev_acc, 3),
-                    "added_hours": round(added_hours, 3),
-                    "acc_hours": round(prev_acc + added_hours, 3),
-                    "failure_ts": failure_ts_text,
-                }
+            errors, maintenance_candidates, computed_grid = legacy_phase2_utils.process_phase2_confirmation(
+                edited_status_df,
+                draft["record_phase"],
+                global_delta,
+                last_ts,
+                record_ts,
+                parse_ts,
+            )
 
             if errors:
                 for err in errors:
                     st.error(err)
             else:
                 draft["status_grid"] = computed_grid
-                draft["maintenance_candidates"] = sorted(list(set(maintenance_candidates)))
+                draft["maintenance_candidates"] = maintenance_candidates
                 draft["phase2_confirmed"] = True
                 queue_confirmation("Phase 2 confirmed. Time distribution calculated.")
                 st.rerun()
@@ -400,25 +336,8 @@ def render_add_record_wizard():
     if not draft.get("phase2_confirmed", False):
         return
 
-    # Phase 3
-    st.markdown("<p class='col-header'>Phase 3: Global Environmental Capture</p>", unsafe_allow_html=True)
-    method = st.radio("Record Method", ["Manual Input", "Voice Recording"], horizontal=True, key="add_record_method")
-    ambient_temp = st.number_input("Ambient Room Temperature (C)", value=float(draft.get("ambient_temp", 25.0)), step=0.1, format="%.1f", key="ambient_temp_input")
-    tank_temps = {}
     water_tanks = st.session_state.get("water_tanks", [])
-    for tank in water_tanks:
-        tank_key = f"tank_temp_{tank}"
-        tank_temps[tank] = st.number_input(f"{tank} Temperature (C)", value=float(draft.get("tank_temps", {}).get(tank, 25.0)), step=0.1, format="%.1f", key=tank_key)
-
-    if st.button("Confirm Global Capture", use_container_width=True, key="confirm_phase3"):
-        draft["method"] = method
-        draft["ambient_temp"] = float(ambient_temp)
-        draft["tank_temps"] = tank_temps
-        draft["phase3_confirmed"] = True
-        queue_confirmation("Phase 3 confirmed. Global inputs captured.")
-        st.rerun()
-
-    if not draft.get("phase3_confirmed", False):
+    if not legacy_record_phases.render_phase3(draft, water_tanks, queue_confirmation):
         return
 
     # Phase 4

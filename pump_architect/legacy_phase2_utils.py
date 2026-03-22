@@ -66,3 +66,55 @@ def build_status_rows(pump_ids, previous_grid, record_phase):
             "Failure DateTime (YYYY-MM-DD HH:MM:SS)": "",
         })
     return pd.DataFrame(status_rows)
+
+
+def process_phase2_confirmation(edited_status_df, record_phase, global_delta, last_ts, record_ts, parse_ts_fn):
+    errors = []
+    maintenance_candidates = []
+    computed_grid = {}
+
+    for _, row in edited_status_df.iterrows():
+        pid = str(row.get("Pump ID", "")).strip()
+        prev_status = str(row.get("Previous Status", "STANDBY")).upper()
+        new_status = str(row.get("New Status", prev_status)).upper()
+        prev_acc = float(row.get("Accumulated Time (hrs)", 0.0) or 0.0)
+        failure_ts_text = str(row.get("Failure DateTime (YYYY-MM-DD HH:MM:SS)", "")).strip()
+        added_hours = 0.0
+
+        if record_phase == "Baseline Calibration (Cold State)":
+            new_status = "STANDBY"
+            added_hours = 0.0
+        elif prev_status == "RUNNING" and new_status == "RUNNING":
+            added_hours = global_delta
+        elif prev_status in ["STANDBY", "PAUSED", "FAILED"] and new_status == prev_status:
+            added_hours = 0.0
+        elif prev_status == "STANDBY" and new_status == "RUNNING":
+            added_hours = 0.0
+        elif prev_status == "RUNNING" and new_status in ["PAUSED", "FAILED"]:
+            if not failure_ts_text:
+                errors.append(f"{pid}: failure datetime is required for RUNNING -> {new_status}.")
+            else:
+                try:
+                    failure_ts = parse_ts_fn(failure_ts_text)
+                    if last_ts is None:
+                        errors.append(f"{pid}: cannot calculate micro-delta without a previous record.")
+                    elif failure_ts < last_ts or failure_ts > record_ts:
+                        errors.append(f"{pid}: failure datetime must be between last record and current record timestamp.")
+                    else:
+                        added_hours = (failure_ts - last_ts).total_seconds() / 3600.0
+                        maintenance_candidates.append(pid)
+                except Exception:
+                    errors.append(f"{pid}: invalid failure datetime format.")
+        else:
+            added_hours = 0.0
+
+        computed_grid[pid] = {
+            "status": new_status,
+            "prev_status": prev_status,
+            "acc_hours_prev": round(prev_acc, 3),
+            "added_hours": round(added_hours, 3),
+            "acc_hours": round(prev_acc + added_hours, 3),
+            "failure_ts": failure_ts_text,
+        }
+
+    return errors, sorted(list(set(maintenance_candidates))), computed_grid

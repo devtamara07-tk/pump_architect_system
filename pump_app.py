@@ -20,6 +20,7 @@ from pump_architect import legacy_ui_event_utils
 from pump_architect import legacy_state_utils
 from pump_architect import legacy_maintenance_wizard
 from pump_architect import legacy_add_record_setup
+from pump_architect import legacy_phase2_utils
 
 current_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -279,21 +280,11 @@ def render_add_record_wizard():
     # Phase 2
     st.markdown("<p class='col-header'>Phase 2: Time Math & State Management</p>", unsafe_allow_html=True)
 
-    default_record_dt = datetime.datetime.now()
-    saved_record_ts = str(draft.get("record_ts", "")).strip()
-    if saved_record_ts:
-        try:
-            default_record_dt = parse_ts(saved_record_ts)
-        except Exception:
-            pass
+    default_record_dt = legacy_phase2_utils.get_default_record_datetime(draft, parse_ts)
 
     work_start = datetime.time(8, 0)
     work_end = datetime.time(17, 0)
-    default_time = default_record_dt.time().replace(second=0, microsecond=0)
-    if default_time < work_start:
-        default_time = work_start
-    if default_time > work_end:
-        default_time = work_end
+    default_time = legacy_phase2_utils.clamp_time_to_work_window(default_record_dt, work_start, work_end)
 
     c_date, c_time = st.columns(2)
     with c_date:
@@ -304,28 +295,19 @@ def render_add_record_wizard():
     record_ts = datetime.datetime.combine(record_date, record_time)
     draft["record_ts"] = record_ts.strftime("%Y-%m-%d %H:%M:%S")
 
-    ts_valid = True
-    if record_time < work_start or record_time > work_end:
-        ts_valid = False
-        st.error("Record Time must be within working hours: 08:00 to 17:00.")
+    ts_valid, work_window_error = legacy_phase2_utils.evaluate_timestamp_window(record_time, work_start, work_end)
+    if work_window_error:
+        st.error(work_window_error)
 
-    last_ts = None
-    if latest_record and latest_record.get("record_ts"):
-        try:
-            last_ts = parse_ts(latest_record["record_ts"])
-        except Exception:
-            last_ts = None
-
-    if draft["record_phase"] == "Baseline Calibration (Cold State)":
-        global_delta = 0.0
-    else:
-        if last_ts is None or not ts_valid:
-            global_delta = 0.0
-        else:
-            global_delta = max(0.0, (record_ts - last_ts).total_seconds() / 3600.0)
-            if record_ts < last_ts:
-                ts_valid = False
-                st.error("Record timestamp cannot be earlier than the last saved record timestamp.")
+    last_ts = legacy_phase2_utils.parse_last_timestamp(latest_record, parse_ts)
+    ts_valid, global_delta, time_error = legacy_phase2_utils.compute_global_delta(
+        draft["record_phase"],
+        ts_valid,
+        record_ts,
+        last_ts,
+    )
+    if time_error:
+        st.error(time_error)
 
     last_record_suffix = "" if not last_ts else f" (Last record: {last_ts.strftime('%Y-%m-%d %H:%M:%S')})"
     st.markdown(
@@ -334,20 +316,7 @@ def render_add_record_wizard():
     )
 
     previous_grid = latest_record.get("status_grid", {}) if latest_record else {}
-    status_rows = []
-    for pid in pump_ids:
-        prev = previous_grid.get(pid, {}) if isinstance(previous_grid, dict) else {}
-        prev_status = str(prev.get("status", "STANDBY")).upper()
-        prev_acc = float(prev.get("acc_hours", 0.0) or 0.0)
-        status_rows.append({
-            "Pump ID": pid,
-            "Previous Status": prev_status,
-            "Accumulated Time (hrs)": prev_acc,
-            "New Status": "STANDBY" if draft["record_phase"] == "Baseline Calibration (Cold State)" else prev_status,
-            "Failure DateTime (YYYY-MM-DD HH:MM:SS)": "",
-        })
-
-    status_df = pd.DataFrame(status_rows)
+    status_df = legacy_phase2_utils.build_status_rows(pump_ids, previous_grid, draft["record_phase"])
     if draft["record_phase"] == "Baseline Calibration (Cold State)":
         st.dataframe(status_df[["Pump ID", "Previous Status", "Accumulated Time (hrs)", "New Status"]], use_container_width=True, hide_index=True)
         edited_status_df = status_df.copy()

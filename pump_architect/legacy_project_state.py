@@ -8,10 +8,40 @@ import streamlit as st
 def init_db(db_file):
     conn = sqlite3.connect(db_file)
     c = conn.cursor()
-    try:
-        c.execute('SELECT "Pump Model" FROM pumps LIMIT 1')
-    except Exception:
-        c.execute('DROP TABLE IF EXISTS pumps')
+    c.execute('''CREATE TABLE IF NOT EXISTS pumps (
+        pump_id TEXT,
+        project_id TEXT,
+        "Pump Model" TEXT,
+        "ISO No." TEXT,
+        HP TEXT,
+        kW TEXT,
+        "Voltage (V)" TEXT,
+        "Amp Min" TEXT,
+        "Amp Max" TEXT,
+        Phase TEXT,
+        Hertz TEXT,
+        Insulation TEXT
+    )''')
+
+    required_pumps_cols = [
+        "pump_id",
+        "project_id",
+        "Pump Model",
+        "ISO No.",
+        "HP",
+        "kW",
+        "Voltage (V)",
+        "Amp Min",
+        "Amp Max",
+        "Phase",
+        "Hertz",
+        "Insulation",
+    ]
+    pump_info = c.execute("PRAGMA table_info(pumps)").fetchall()
+    existing_pump_cols = [row[1] for row in pump_info]
+    if any(col not in existing_pump_cols for col in required_pumps_cols):
+        c.execute("DROP TABLE IF EXISTS pumps_legacy_backup")
+        c.execute("ALTER TABLE pumps RENAME TO pumps_legacy_backup")
         c.execute('''CREATE TABLE IF NOT EXISTS pumps (
             pump_id TEXT,
             project_id TEXT,
@@ -26,6 +56,53 @@ def init_db(db_file):
             Hertz TEXT,
             Insulation TEXT
         )''')
+
+        legacy_cols = [
+            row[1]
+            for row in c.execute("PRAGMA table_info(pumps_legacy_backup)").fetchall()
+        ]
+
+        def _pick(*candidates):
+            for name in candidates:
+                if name in legacy_cols:
+                    return f'"{name}"'
+            return "''"
+
+        c.execute(
+            """
+            INSERT INTO pumps (
+                pump_id, project_id, "Pump Model", "ISO No.", HP, kW,
+                "Voltage (V)", "Amp Min", "Amp Max", Phase, Hertz, Insulation
+            )
+            SELECT
+                {pump_id},
+                {project_id},
+                {pump_model},
+                {iso_no},
+                {hp},
+                {kw},
+                {voltage},
+                {amp_min},
+                {amp_max},
+                {phase},
+                {hertz},
+                {insulation}
+            FROM pumps_legacy_backup
+            """.format(
+                pump_id=_pick("pump_id", "Pump ID"),
+                project_id=_pick("project_id", "project_name"),
+                pump_model=_pick("Pump Model", "model"),
+                iso_no=_pick("ISO No.", "iso_no"),
+                hp=_pick("HP", "hp"),
+                kw=_pick("kW", "kw"),
+                voltage=_pick("Voltage (V)", "voltage"),
+                amp_min=_pick("Amp Min", "amp_min", "amp"),
+                amp_max=_pick("Amp Max", "amp_max"),
+                phase=_pick("Phase", "phase"),
+                hertz=_pick("Hertz", "hertz"),
+                insulation=_pick("Insulation", "insulation"),
+            )
+        )
 
     c.execute('''CREATE TABLE IF NOT EXISTS projects (
         project_id TEXT PRIMARY KEY, type TEXT, test_type TEXT,

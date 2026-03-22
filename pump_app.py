@@ -22,6 +22,7 @@ from pump_architect import legacy_maintenance_wizard
 from pump_architect import legacy_add_record_setup
 from pump_architect import legacy_phase2_utils
 from pump_architect import legacy_record_phases
+from pump_architect import legacy_phase4_utils
 
 current_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -344,10 +345,7 @@ def render_add_record_wizard():
     st.markdown("<p class='col-header'>Phase 4: Targeted Hardware Polling</p>", unsafe_allow_html=True)
     limits_df = st.session_state.get("limits_df", pd.DataFrame(columns=["Pump ID", "Max Stator Temp (°C)", "Max Current (A)"]))
     extra_limits_df = st.session_state.get("extra_limits_df", pd.DataFrame(columns=["Formula Name", "Min Value", "Max Value", "Applies To"]))
-    limits_lookup = {}
-    if isinstance(limits_df, pd.DataFrame) and not limits_df.empty and "Pump ID" in limits_df.columns:
-        for _, lr in limits_df.iterrows():
-            limits_lookup[str(lr.get("Pump ID", ""))] = lr
+    limits_lookup = legacy_phase4_utils.build_limits_lookup(limits_df)
 
     temp_units, clamp_units = build_phase4_hardware_plan(pump_ids, draft["status_grid"])
     pump_readings = {}
@@ -374,22 +372,13 @@ def render_add_record_wizard():
             st.markdown(f"<p style='color:#4DA3FF; font-size:16px; font-weight:bold; margin-top:10px;'>{hw_name}</p>", unsafe_allow_html=True)
             source_text = ", ".join(unit.get("data_source", [])) if isinstance(unit.get("data_source"), list) else str(unit.get("data_source", "Manual Input"))
             st.markdown(f"<p style='color:white; font-size:13px;'>Data Source: {source_text}</p>", unsafe_allow_html=True)
-
-            saved_rows = saved_temp_tables.get(hw_name, []) if isinstance(saved_temp_tables, dict) else []
-            saved_lookup = {str(row.get("CH", "")).strip(): row for row in saved_rows}
-            editor_rows = []
-            for row in unit["rows"]:
-                rendered_temp_pumps.add(row["Pump ID"])
-                prior_temp = safe_float(previous_readings.get(row["Pump ID"], {}).get("temp"), 0.0)
-                saved_value = safe_float(saved_lookup.get(row["CH"], {}).get("Reading (C)"), prior_temp)
-                editor_rows.append({
-                    "CH": row["CH"],
-                    "Sensor Name": row["Sensor Name"],
-                    "Pump ID": row["Pump ID"],
-                    "Status": row["Status"],
-                    "Measurement Type": row["Measurement Type"],
-                    "Reading (C)": float(saved_value),
-                })
+            editor_rows = legacy_phase4_utils.build_temp_editor_rows(
+                unit,
+                saved_temp_tables,
+                previous_readings,
+                safe_float,
+                rendered_temp_pumps,
+            )
 
             temp_tables[hw_name] = st.data_editor(
                 pd.DataFrame(editor_rows),
@@ -408,15 +397,12 @@ def render_add_record_wizard():
                 },
             )
 
-    unmapped_temp_pumps = []
-    fallback_temp_pumps = []
-    for pid in pump_ids:
-        status = str(draft["status_grid"].get(pid, {}).get("status", "STANDBY")).upper()
-        if status in ["RUNNING", "STANDBY", "PAUSED"] and pid not in rendered_temp_pumps:
-            if has_temp_hardware:
-                unmapped_temp_pumps.append(pid)
-            else:
-                fallback_temp_pumps.append((pid, status))
+    unmapped_temp_pumps, fallback_temp_pumps = legacy_phase4_utils.classify_temp_mapping_gaps(
+        pump_ids,
+        draft["status_grid"],
+        rendered_temp_pumps,
+        has_temp_hardware,
+    )
 
     if has_temp_hardware and unmapped_temp_pumps:
         st.markdown(
@@ -450,27 +436,14 @@ def render_add_record_wizard():
             st.markdown(f"<p style='color:#4DA3FF; font-size:16px; font-weight:bold; margin-top:10px;'>{hw_name}</p>", unsafe_allow_html=True)
             source_text = ", ".join(unit.get("data_source", [])) if isinstance(unit.get("data_source"), list) else str(unit.get("data_source", "Manual Input"))
             st.markdown(f"<p style='color:white; font-size:13px;'>Data Source: {source_text}</p>", unsafe_allow_html=True)
-
-            saved_rows = saved_clamp_tables.get(hw_name, []) if isinstance(saved_clamp_tables, dict) else []
-            saved_lookup = {str(row.get("Pump ID", "")).strip(): row for row in saved_rows}
-            editor_rows = []
-            for row in unit["rows"]:
-                rendered_clamp_pumps.add(row["Pump ID"])
-                pid = row["Pump ID"]
-                lim = limits_lookup.get(pid)
-                max_current = safe_float(lim.get("Max Current (A)", 0.0) if lim is not None else 0.0, 0.0)
-                prior_amps = safe_float(previous_readings.get(pid, {}).get("amps"), 0.0)
-                if row["Status"] in ["STANDBY", "PAUSED"]:
-                    current_value = 0.0
-                else:
-                    current_value = safe_float(saved_lookup.get(pid, {}).get("Reading (A)"), prior_amps)
-                editor_rows.append({
-                    "Pump ID": pid,
-                    "Sensor Name": row["Sensor Name"],
-                    "Status": row["Status"],
-                    "Max Current (A)": float(max_current),
-                    "Reading (A)": float(current_value),
-                })
+            editor_rows = legacy_phase4_utils.build_clamp_editor_rows(
+                unit,
+                saved_clamp_tables,
+                previous_readings,
+                limits_lookup,
+                safe_float,
+                rendered_clamp_pumps,
+            )
 
             clamp_tables[hw_name] = st.data_editor(
                 pd.DataFrame(editor_rows),
@@ -487,15 +460,12 @@ def render_add_record_wizard():
                 },
             )
 
-    unmapped_clamp_pumps = []
-    fallback_clamp_pumps = []
-    for pid in pump_ids:
-        status = str(draft["status_grid"].get(pid, {}).get("status", "STANDBY")).upper()
-        if status == "RUNNING" and pid not in rendered_clamp_pumps:
-            if has_clamp_hardware:
-                unmapped_clamp_pumps.append(pid)
-            else:
-                fallback_clamp_pumps.append(pid)
+    unmapped_clamp_pumps, fallback_clamp_pumps = legacy_phase4_utils.classify_clamp_mapping_gaps(
+        pump_ids,
+        draft["status_grid"],
+        rendered_clamp_pumps,
+        has_clamp_hardware,
+    )
 
     if has_clamp_hardware and unmapped_clamp_pumps:
         st.markdown(
@@ -523,16 +493,13 @@ def render_add_record_wizard():
                 "status": "RUNNING",
             }
 
-    for pid in pump_ids:
-        status = str(draft["status_grid"].get(pid, {}).get("status", "STANDBY")).upper()
-        if status == "FAILED":
-            pump_readings[pid] = {"temp": None, "amps": None, "status": status}
-        elif pid not in pump_readings:
-            pump_readings[pid] = {
-                "temp": safe_float(previous_readings.get(pid, {}).get("temp"), 0.0),
-                "amps": 0.0 if status in ["STANDBY", "PAUSED"] else safe_float(previous_readings.get(pid, {}).get("amps"), 0.0),
-                "status": status,
-            }
+    pump_readings = legacy_phase4_utils.ensure_default_pump_readings(
+        pump_ids,
+        draft["status_grid"],
+        pump_readings,
+        previous_readings,
+        safe_float,
+    )
 
     if st.button("Confirm Targeted Polling", use_container_width=True, key="confirm_phase4"):
         errors = []

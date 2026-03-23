@@ -32,12 +32,20 @@ def render_project_form(edit_id=None):
     Args:
         edit_id: project_id of an existing project to edit, or None to create new.
     """
-    if st.button("⬅️ Back to Main Page"):
+    if st.button("Back to Main Page"):
         _clear_form_state()
         st.session_state.page = "home"
         st.rerun()
 
-    st.header(f"🛠️ {'Modify Project: ' + edit_id if edit_id else 'Create a New Project'}")
+    st.markdown(
+        f"""
+        <div class="dashboard-shell">
+            <div class="dashboard-kicker">Project Configuration</div>
+            <h1 class="dashboard-title">{'Modify Project: ' + edit_id if edit_id else 'Create a New Project'}</h1>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     conn = get_connection()
     try:
@@ -75,7 +83,6 @@ def render_project_form(edit_id=None):
     finally:
         conn.close()
 
-    # --- COLAB STYLE: Tighter Columns & Horizontal Radio ---
     col1, col2 = st.columns([1.5, 2.5])
     with col1:
         p_type = st.radio(
@@ -92,11 +99,14 @@ def render_project_form(edit_id=None):
         )
 
     project_name = f"{p_type}_{t_type}" if t_type else p_type
-    st.markdown(f"**Project Name:** `{project_name}`")
+    st.markdown(
+        f"<div class='project-badge'>Project Name: <strong>{project_name}</strong></div>",
+        unsafe_allow_html=True,
+    )
     st.divider()
 
-    st.write("### 3. Pump Specs")
-    st.info("💡 **Remark:** To add a pump, simply type the model name into the **Pump Model** column. Select a row and press `Delete` to remove it.")
+    st.markdown("<div class='section-heading'>3. Pump Specs</div>", unsafe_allow_html=True)
+    st.info("Remark: To add a pump, type the model name into the Pump Model column. Remove unused rows directly from the table.")
 
     desired_columns = ["Pump Model", "Pump ID", "ISO No.", "HP", "kW", "Voltage (V)", "Amp (A)", "Phase", "Hertz", "Insulation"]
 
@@ -141,14 +151,14 @@ def render_project_form(edit_id=None):
     valid_pumps = edited_df["Pump ID"].dropna().tolist()
     if valid_pumps:
         st.divider()
-        st.write("### 4. Pump Test Installation Layout")
+        st.markdown("<div class='section-heading'>4. Pump Test Installation Layout</div>", unsafe_allow_html=True)
 
         if "tanks" not in st.session_state:
             st.session_state.tanks = {"Water Tank 1": []}
 
         col_btn, _ = st.columns([1, 4])
         with col_btn:
-            if st.button("➕ Add Water Tank", use_container_width=True):
+            if st.button("Add Water Tank", use_container_width=True):
                 next_num = len(st.session_state.tanks) + 1
                 new_tank_name = f"Water Tank {next_num}"
                 while new_tank_name in st.session_state.tanks:
@@ -162,14 +172,14 @@ def render_project_form(edit_id=None):
             if widget_key in st.session_state:
                 st.session_state.tanks[tank] = [p for p in st.session_state[widget_key] if p in valid_pumps]
 
-        # --- COLAB STYLE GRID: Arrange tanks side-by-side (3 per row) ---
         tank_names = list(st.session_state.tanks.keys())
         cols = st.columns(3)
 
         for i, tank in enumerate(tank_names):
             with cols[i % 3]:
                 with st.container(border=True):
-                    st.write(f"**{tank}**")
+                    st.markdown(f"<div class='tank-title'>{tank}</div>", unsafe_allow_html=True)
+                    st.markdown("<div class='muted-note'>Assign each pump to one active water tank.</div>", unsafe_allow_html=True)
 
                     assigned_to_others = []
                     for other_tank, p_list in st.session_state.tanks.items():
@@ -189,7 +199,7 @@ def render_project_form(edit_id=None):
         st.write("")
         col_save, _ = st.columns([1, 4])
         with col_save:
-            if st.button("💾 Save Project", type="primary", use_container_width=True):
+            if st.button("Save Project", type="primary", use_container_width=True):
                 try:
                     save_project(project_name, p_type, t_type, edited_df, st.session_state.tanks, edit_id=edit_id)
                     st.success("Project Saved!")

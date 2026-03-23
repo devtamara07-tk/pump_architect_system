@@ -28,9 +28,50 @@ def render_dashboard_page(
         .value-grey { color: #888; font-size: 36px; font-weight: bold; line-height: 1; margin: 5px 0; }
         .status-light-run { height: 20px; width: 20px; background-color: #2ECC71; border-radius: 50%; display: inline-block; box-shadow: 0 0 10px #2ECC71; }
         .status-light-stop { height: 20px; width: 20px; background-color: #555; border-radius: 50%; display: inline-block; }
+        .status-light-alarm { height: 20px; width: 20px; background-color: #E67E22; border-radius: 50%; display: inline-block; box-shadow: 0 0 10px #E67E22; }
         .header-title { font-size: 22px; font-weight: bold; letter-spacing: 1px; color: #3498DB; text-transform: uppercase; margin-bottom: 5px; }
         .event-log-text { font-size: 13px; color: #AAA; font-family: monospace; margin-bottom: 4px; }
         .event-alert { color: #E74C3C; font-weight: bold; }
+
+        div[data-testid="stHorizontalBlock"]:has(> div:nth-child(3) button) > div:nth-child(1) button {
+            background: linear-gradient(180deg, #0d6efd 0%, #0b5ed7 100%) !important;
+            color: #FFFFFF !important;
+            border: none !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has(> div:nth-child(3) button) > div:nth-child(1) button * {
+            color: #FFFFFF !important;
+            fill: #FFFFFF !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has(> div:nth-child(3) button) > div:nth-child(2) button {
+            background: linear-gradient(180deg, #ffd978 0%, #f3b63f 100%) !important;
+            color: #201300 !important;
+            border: 1px solid #d19a2d !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has(> div:nth-child(3) button) > div:nth-child(2) button * {
+            color: #201300 !important;
+            fill: #201300 !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has(> div:nth-child(3) button) > div:nth-child(3) button {
+            background: linear-gradient(180deg, #f4f7fb 0%, #dce4ef 100%) !important;
+            color: #09111a !important;
+            border: 1px solid #c4d1de !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has(> div:nth-child(3) button) > div:nth-child(3) button * {
+            color: #09111a !important;
+            fill: #09111a !important;
+        }
+
+        button[aria-label="DANGER Confirm Delete Run Test Inputs"],
+        button[aria-label="DANGER Confirm Delete Maintenance Inputs"] {
+            background: linear-gradient(180deg, #ff7f7f 0%, #dc4c4c 100%) !important;
+            color: #FFFFFF !important;
+            border: 1px solid #b53737 !important;
+        }
+        button[aria-label="DANGER Confirm Delete Run Test Inputs"] *,
+        button[aria-label="DANGER Confirm Delete Maintenance Inputs"] * {
+            color: #FFFFFF !important;
+            fill: #FFFFFF !important;
+        }
         </style>
     """, unsafe_allow_html=True)
 
@@ -89,30 +130,43 @@ def render_dashboard_page(
     is_cycle_test = "Cycle" in test_type or "Intermittent" in test_type or "Cycle" in run_mode
 
     total_acc_value = 0.0
+    elapsed_runtime_value = 0.0
+    running_pump_count = 0
+    displayed_pump_count = 0
     if isinstance(latest_status_grid, dict) and latest_status_grid:
         try:
-            total_acc_value = sum(float(item.get("acc_hours", 0.0) or 0.0) for item in latest_status_grid.values())
+            acc_values = [float(item.get("acc_hours", 0.0) or 0.0) for item in latest_status_grid.values()]
+            total_acc_value = sum(acc_values)
+            elapsed_runtime_value = max(acc_values) if acc_values else 0.0
+            displayed_pump_count = len(acc_values)
+            running_pump_count = sum(1 for item in latest_status_grid.values() if str(item.get("status", "")).upper() == "RUNNING")
         except Exception:
             total_acc_value = 0.0
+            elapsed_runtime_value = 0.0
+            running_pump_count = 0
+            displayed_pump_count = 0
     try:
         target_val_num = float(target_val)
     except Exception:
         target_val_num = 0.0
-    progress_pct = 0.0 if target_val_num <= 0 else max(0.0, min(100.0, (total_acc_value / target_val_num) * 100.0))
+    progress_pct = 0.0 if target_val_num <= 0 else max(0.0, min(100.0, (elapsed_runtime_value / target_val_num) * 100.0))
 
     if is_cycle_test:
         bar_title = "TOTAL MISSION CYCLES"
-        bar_value = f"{total_acc_value:.1f} / {target_val} cycles"
+        bar_value = f"{elapsed_runtime_value:.1f} / {target_val} cycles"
+        secondary_value = f"Aggregate load: {total_acc_value:.1f} pump-cycles across {displayed_pump_count} pump(s)"
         bar_color = "#3498DB" 
     else:
-        bar_title = "TOTAL MISSION RUN TIME"
-        bar_value = f"{total_acc_value:.1f} / {target_val} hrs"
+        bar_title = "TOTAL MISSION ELAPSED TIME"
+        bar_value = f"{elapsed_runtime_value:.1f} / {target_val} hrs"
+        secondary_value = f"Aggregate load: {total_acc_value:.1f} pump-hours | Running now: {running_pump_count} pump(s)"
         bar_color = "#EEDD82" 
 
     st.markdown(f"""
         <div class="panel" style="margin-bottom: 20px;">
             <div style="display: flex; justify-content: space-between;"><span class="panel-title">{bar_title}</span> <span style="font-weight:bold; color:white; font-size:16px;">{bar_value}</span></div>
             <div style="background: #333; height: 12px; border-radius: 6px; margin-top: 8px;"><div style="background: {bar_color}; width: {progress_pct:.1f}%; height: 100%; border-radius: 6px;"></div></div>
+            <div style="margin-top:8px; font-size:12px; color:#AAB2BF;">{secondary_value}</div>
         </div>
     """, unsafe_allow_html=True)
 
@@ -272,26 +326,31 @@ def render_dashboard_page(
         st.divider()
 
         # --- ACTION BUTTONS (Icons Removed) ---
-        if st.button("Add New Record", use_container_width=True, key="btn_add_record"):
-            st.session_state.page = "add_record"
-            st.session_state.add_record_draft = {}
-            st.rerun()
+        action_col1, action_col2, action_col3 = st.columns(3)
+        with action_col1:
+            if st.button("Add New Record", use_container_width=True, type="primary", key="btn_add_record"):
+                st.session_state.page = "add_record"
+                st.session_state.add_record_draft = {}
+                st.rerun()
 
-        if st.button("Add New Maintenance", use_container_width=True, key="btn_add_maint"):
-            st.session_state.maintenance_prefill_pumps = []
-            st.session_state.maintenance_source_record_id = None
-            st.session_state.page = "add_maintenance"
-            st.rerun()
+        with action_col2:
+            if st.button("Add New Maintenance", use_container_width=True, key="btn_add_maint"):
+                st.session_state.maintenance_prefill_pumps = []
+                st.session_state.maintenance_source_record_id = None
+                st.session_state.page = "add_maintenance"
+                st.rerun()
+
         report_csv = build_dashboard_report_csv(project_name)
         report_name_ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        report_clicked = st.download_button(
-            "Print Report",
-            data=report_csv,
-            file_name=f"{project_name}_dashboard_report_{report_name_ts}.csv",
-            mime="text/csv",
-            use_container_width=True,
-            key="btn_print_report",
-        )
+        with action_col3:
+            report_clicked = st.download_button(
+                "Print Report",
+                data=report_csv,
+                file_name=f"{project_name}_dashboard_report_{report_name_ts}.csv",
+                mime="text/csv",
+                use_container_width=True,
+                key="btn_print_report",
+            )
         if report_clicked:
             add_event_log_entry("Dashboard report exported.")
             persist_event_log_for_project(project_name)
@@ -303,21 +362,30 @@ def render_dashboard_page(
 
         debug_confirm_key = f"clear_records_confirm_{project_name}"
         if st.session_state.get(debug_confirm_key, False):
-            if st.button("Debugger Confirm: Delete Run Test Inputs", use_container_width=True, type="primary", key="btn_clear_records_confirm"):
-                deleted_rows = clear_project_records(project_name)
-                st.session_state.add_record_draft = {}
-                st.session_state.maintenance_prefill_pumps = []
-                st.session_state.maintenance_source_record_id = None
-                st.session_state.pop(debug_confirm_key, None)
-                queue_confirmation(f"Deleted {deleted_rows} saved run test input record(s). Project setup remains intact.")
-                st.rerun()
-            if st.button("Cancel Delete Run Test Inputs", use_container_width=True, key="btn_clear_records_cancel"):
-                st.session_state.pop(debug_confirm_key, None)
-                st.rerun()
+            st.warning("Delete run test inputs is permanent. Project setup remains intact.")
+            rec_cancel_col, rec_confirm_col, _ = st.columns([1.3, 1.7, 3.0])
+            with rec_cancel_col:
+                if st.button("Cancel Delete Run Test Inputs", use_container_width=True, key="btn_clear_records_cancel"):
+                    st.session_state.pop(debug_confirm_key, None)
+                    st.rerun()
+            with rec_confirm_col:
+                if st.button("DANGER Confirm Delete Run Test Inputs", use_container_width=True, type="primary", key="btn_clear_records_confirm"):
+                    deleted_rows = clear_project_records(project_name)
+                    st.session_state.add_record_draft = {}
+                    st.session_state.maintenance_prefill_pumps = []
+                    st.session_state.maintenance_source_record_id = None
+                    st.session_state.pop(debug_confirm_key, None)
+                    queue_confirmation(
+                        f"Deleted {deleted_rows} saved run test input record(s). "
+                        "Tank activation state has also been reset for this project."
+                    )
+                    st.rerun()
         else:
-            if st.button("Debugger: Delete Run Test Inputs", use_container_width=True, key="btn_clear_records"):
-                st.session_state[debug_confirm_key] = True
-                st.rerun()
+            _danger_col, _ = st.columns([2, 4])
+            with _danger_col:
+                if st.button("DANGER Begin Delete Run Test Inputs", use_container_width=True, key="btn_clear_records"):
+                    st.session_state[debug_confirm_key] = True
+                    st.rerun()
 
         st.markdown(
             f"<p style='color:white; font-size:13px; margin-top:8px;'>Saved maintenance inputs: <b>{maintenance_count}</b></p>",
@@ -326,25 +394,33 @@ def render_dashboard_page(
 
         maint_debug_confirm_key = f"clear_maintenance_confirm_{project_name}"
         if st.session_state.get(maint_debug_confirm_key, False):
-            if st.button("Debugger Confirm: Delete Maintenance Inputs", use_container_width=True, type="primary", key="btn_clear_maintenance_confirm"):
-                deleted_rows = clear_project_maintenance_events(project_name)
-                st.session_state.maintenance_prefill_pumps = []
-                st.session_state.maintenance_source_record_id = None
-                st.session_state.pop(maint_debug_confirm_key, None)
-                queue_confirmation(f"Deleted {deleted_rows} saved maintenance input record(s). Project setup remains intact.")
-                st.rerun()
-            if st.button("Cancel Delete Maintenance Inputs", use_container_width=True, key="btn_clear_maintenance_cancel"):
-                st.session_state.pop(maint_debug_confirm_key, None)
-                st.rerun()
+            st.warning("Delete maintenance inputs is permanent. Project setup remains intact.")
+            maint_cancel_col, maint_confirm_col, _ = st.columns([1.3, 1.7, 3.0])
+            with maint_cancel_col:
+                if st.button("Cancel Delete Maintenance Inputs", use_container_width=True, key="btn_clear_maintenance_cancel"):
+                    st.session_state.pop(maint_debug_confirm_key, None)
+                    st.rerun()
+            with maint_confirm_col:
+                if st.button("DANGER Confirm Delete Maintenance Inputs", use_container_width=True, type="primary", key="btn_clear_maintenance_confirm"):
+                    deleted_rows = clear_project_maintenance_events(project_name)
+                    st.session_state.maintenance_prefill_pumps = []
+                    st.session_state.maintenance_source_record_id = None
+                    st.session_state.pop(maint_debug_confirm_key, None)
+                    queue_confirmation(f"Deleted {deleted_rows} saved maintenance input record(s). Project setup remains intact.")
+                    st.rerun()
         else:
-            if st.button("Debugger: Delete Maintenance Inputs", use_container_width=True, key="btn_clear_maintenance"):
-                st.session_state[maint_debug_confirm_key] = True
-                st.rerun()
+            _maint_danger_col, _ = st.columns([2, 4])
+            with _maint_danger_col:
+                if st.button("DANGER Begin Delete Maintenance Inputs", use_container_width=True, key="btn_clear_maintenance"):
+                    st.session_state[maint_debug_confirm_key] = True
+                    st.rerun()
     
         st.write("")
-        if st.button("Exit Dashboard", use_container_width=True, type="primary"):
-            st.session_state.page = "home"
-            st.rerun()
+        _exit_col, _ = st.columns([1.2, 4.8])
+        with _exit_col:
+            if st.button("Exit Dashboard", use_container_width=True):
+                st.session_state.page = "home"
+                st.rerun()
 
     with col_right:
         if "active_pumps_df" in st.session_state and not st.session_state.active_pumps_df.empty:
@@ -357,6 +433,27 @@ def render_dashboard_page(
             latest_status_grid = latest_record.get("status_grid", {}) if latest_record else {}
             latest_readings = latest_record.get("pump_readings", {}) if latest_record else {}
             latest_alarms = latest_record.get("alarms", []) if latest_record else []
+
+            # For staggered multi-tank recording, the latest global record can be from a different
+            # tank and may not contain fresh readings for all pumps. Build a per-pump fallback from
+            # most-recent records so Tank 2 cards still show their latest known values.
+            latest_readings_by_pump = dict(latest_readings) if isinstance(latest_readings, dict) else {}
+            try:
+                records_df = get_project_records(project_name)
+                if isinstance(records_df, pd.DataFrame) and not records_df.empty and "pump_readings_json" in records_df.columns:
+                    for _, rec_row in records_df.iterrows():
+                        try:
+                            readings_payload = json.loads(rec_row.get("pump_readings_json") or "{}")
+                        except Exception:
+                            readings_payload = {}
+                        if not isinstance(readings_payload, dict):
+                            continue
+                        for pid_key, payload in readings_payload.items():
+                            pid_key = str(pid_key).strip()
+                            if pid_key and pid_key not in latest_readings_by_pump:
+                                latest_readings_by_pump[pid_key] = payload
+            except Exception:
+                pass
 
             alarm_pump_ids = set()
             if isinstance(latest_alarms, list):
@@ -450,7 +547,7 @@ def render_dashboard_page(
                             temp_max = 0.0
 
                         record_grid = latest_status_grid.get(p_id, {}) if isinstance(latest_status_grid, dict) else {}
-                        record_reading = latest_readings.get(p_id, {}) if isinstance(latest_readings, dict) else {}
+                        record_reading = latest_readings_by_pump.get(p_id, {}) if isinstance(latest_readings_by_pump, dict) else {}
                         record_status = str(record_grid.get("status", "STANDBY")).upper()
                         record_alarm = p_id in alarm_pump_ids
                         running_time_value = f"{float(record_grid.get('acc_hours', 0.0) or 0.0):.1f} / {target_val} {running_time_unit}"
@@ -459,26 +556,60 @@ def render_dashboard_page(
                             status_color = "value-green"
                             light_class = "status-light-run"
                             svg_color = "#2ECC71"
-                            status_text = "RUNNING"
+                            op_state_text = "RUNNING"
+                            op_state_color = "#2ECC71"
+                            op_state_bg = "rgba(46, 204, 113, 0.18)"
+                            op_state_border = "#2ECC71"
                         elif record_status == "PAUSED":
                             status_color = "value-grey"
                             light_class = "status-light-stop"
                             svg_color = "#EEDD82"
-                            status_text = "PAUSED"
+                            op_state_text = "PAUSED"
+                            op_state_color = "#EEDD82"
+                            op_state_bg = "rgba(238, 221, 130, 0.18)"
+                            op_state_border = "#EEDD82"
                         elif record_status == "FAILED":
                             status_color = "value-grey"
                             light_class = "status-light-stop"
                             svg_color = "#E74C3C"
-                            status_text = "FAILED"
+                            op_state_text = "FAILED"
+                            op_state_color = "#E74C3C"
+                            op_state_bg = "rgba(231, 76, 60, 0.18)"
+                            op_state_border = "#E74C3C"
                         else:
                             status_color = "value-grey"
                             light_class = "status-light-stop"
                             svg_color = "#777"
-                            status_text = "STANDBY"
+                            op_state_text = "STANDBY"
+                            op_state_color = "#9CA3AF"
+                            op_state_bg = "rgba(156, 163, 175, 0.16)"
+                            op_state_border = "#6B7280"
+
+                        alarm_state_text = "NO ALARM"
+                        alarm_state_color = "#2ECC71"
+                        alarm_state_bg = "rgba(46, 204, 113, 0.16)"
+                        alarm_state_border = "#2ECC71"
 
                         if record_alarm:
+                            light_class = "status-light-alarm"
                             svg_color = "#E67E22"
-                            status_text = "ALARM"
+                            alarm_state_text = "ALARM"
+                            alarm_state_color = "#E67E22"
+                            alarm_state_bg = "rgba(230, 126, 34, 0.18)"
+                            alarm_state_border = "#E67E22"
+
+                        op_state_badge_html = (
+                            f'<span style="display:inline-block; padding:2px 7px; border-radius:999px; '
+                            f'border:1px solid {op_state_border}; color:{op_state_color}; '
+                            f'background:{op_state_bg}; font-size:10px; font-weight:700; letter-spacing:0.04em; '
+                            f'text-transform:uppercase; margin-top:4px;">{op_state_text}</span>'
+                        )
+                        alarm_state_badge_html = (
+                            f'<span style="display:inline-block; padding:2px 7px; border-radius:999px; '
+                            f'border:1px solid {alarm_state_border}; color:{alarm_state_color}; '
+                            f'background:{alarm_state_bg}; font-size:10px; font-weight:700; letter-spacing:0.04em; '
+                            f'text-transform:uppercase; margin-top:4px;">{alarm_state_text}</span>'
+                        )
 
                         try:
                             current_val = f"{float(record_reading.get('amps', 0.0) or 0.0):.2f}A"
@@ -563,7 +694,10 @@ def render_dashboard_page(
                                 '<div style="text-align: center;">'
                                 '<div style="font-size: 10px; color: #888; margin-bottom: 5px;">STATUS LIGHT</div>'
                                 f'<div class="{light_class}"></div>'
-                                f'<div style="font-size: 10px; color: {svg_color}; font-weight: bold; margin-top: 3px;">{status_text}</div>'
+                                '<div style="font-size: 9px; color: #8D96A7; margin-top: 6px; letter-spacing: 0.05em; text-transform: uppercase;">Operational</div>'
+                                f'{op_state_badge_html}'
+                                '<div style="font-size: 9px; color: #8D96A7; margin-top: 6px; letter-spacing: 0.05em; text-transform: uppercase;">Alarm</div>'
+                                f'{alarm_state_badge_html}'
                                 '</div>'
                                 '</div>'
                                 '<div style="display:flex; justify-content:space-between; gap:12px; margin-top:10px;">'

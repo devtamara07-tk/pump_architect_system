@@ -50,6 +50,54 @@ def compute_global_delta(record_phase, ts_valid, record_ts, last_ts):
     if record_ts < last_ts:
         return False, global_delta, "Record timestamp cannot be earlier than the last saved record timestamp."
     return ts_valid, global_delta, None
+def compute_global_delta(record_phase, ts_valid, record_ts, last_ts):
+    if record_phase == "Baseline Calibration (Cold State)":
+        return ts_valid, 0.0, None
+
+    if last_ts is None or not ts_valid:
+        return ts_valid, 0.0, None
+
+    global_delta = max(0.0, (record_ts - last_ts).total_seconds() / 3600.0)
+    if record_ts < last_ts:
+        return False, global_delta, "Record timestamp cannot be earlier than the last saved record timestamp."
+    return ts_valid, global_delta, None
+
+
+def compute_per_tank_deltas(record_phase, ts_valid, record_ts, active_tank_names, latest_records_by_tank, parse_ts_fn):
+    """Return (ts_valid, tank_deltas, error_msg).
+
+    tank_deltas = {tank_name: hours_since_last_record_for_that_tank}
+    For baseline records every delta is 0.  For tanks with no prior record the
+    delta is 0 (first entry — they are being activated this session).
+    """
+    if record_phase == "Baseline Calibration (Cold State)":
+        return ts_valid, {t: 0.0 for t in active_tank_names}, None
+
+    tank_deltas = {}
+    for tank_name in active_tank_names:
+        tank_latest = latest_records_by_tank.get(tank_name)
+        last_ts = None
+        if tank_latest and tank_latest.get("record_ts"):
+            try:
+                last_ts = parse_ts_fn(tank_latest["record_ts"])
+            except Exception:
+                pass
+
+        if last_ts is None or not ts_valid:
+            tank_deltas[tank_name] = 0.0
+            continue
+
+        if record_ts < last_ts:
+            return (
+                False,
+                tank_deltas,
+                f"Record timestamp cannot be earlier than the last saved record for "
+                f"{tank_name} ({last_ts.strftime('%Y-%m-%d %H:%M:%S')}).",
+            )
+
+        tank_deltas[tank_name] = max(0.0, (record_ts - last_ts).total_seconds() / 3600.0)
+
+    return ts_valid, tank_deltas, None
 
 
 def build_status_rows(pump_ids, previous_grid, record_phase):
@@ -68,7 +116,17 @@ def build_status_rows(pump_ids, previous_grid, record_phase):
     return pd.DataFrame(status_rows)
 
 
-def process_phase2_confirmation(edited_status_df, record_phase, global_delta, last_ts, record_ts, parse_ts_fn):
+def process_phase2_confirmation(
+    edited_status_df, record_phase, global_delta, last_ts, record_ts, parse_ts_fn,
+    tank_deltas=None, pump_tank_lookup=None, last_ts_by_tank=None,
+):
+    """Compute the status grid for the current record.
+
+    When tank_deltas and pump_tank_lookup are supplied the per-pump delta is
+    resolved from the pump's assigned tank instead of global_delta.  The
+    last_ts_by_tank dict provides the per-tank last timestamp needed for
+    RUNNING→FAILED micro-delta calculations.
+    """
     errors = []
     maintenance_candidates = []
     computed_grid = {}
@@ -85,7 +143,11 @@ def process_phase2_confirmation(edited_status_df, record_phase, global_delta, la
             new_status = "STANDBY"
             added_hours = 0.0
         elif prev_status == "RUNNING" and new_status == "RUNNING":
-            added_hours = global_delta
+            if tank_deltas and pump_tank_lookup:
+                tank_name = pump_tank_lookup.get(pid, "")
+                added_hours = tank_deltas.get(tank_name, global_delta)
+            else:
+                added_hours = global_delta
         elif prev_status in ["STANDBY", "PAUSED", "FAILED"] and new_status == prev_status:
             added_hours = 0.0
         elif prev_status == "STANDBY" and new_status == "RUNNING":
@@ -96,12 +158,17 @@ def process_phase2_confirmation(edited_status_df, record_phase, global_delta, la
             else:
                 try:
                     failure_ts = parse_ts_fn(failure_ts_text)
-                    if last_ts is None:
+                    # Resolve the effective last timestamp: per-tank if available
+                    effective_last_ts = last_ts
+                    if last_ts_by_tank and pump_tank_lookup:
+                        tank_name = pump_tank_lookup.get(pid, "")
+                        effective_last_ts = last_ts_by_tank.get(tank_name, last_ts)
+                    if effective_last_ts is None:
                         errors.append(f"{pid}: cannot calculate micro-delta without a previous record.")
-                    elif failure_ts < last_ts or failure_ts > record_ts:
+                    elif failure_ts < effective_last_ts or failure_ts > record_ts:
                         errors.append(f"{pid}: failure datetime must be between last record and current record timestamp.")
                     else:
-                        added_hours = (failure_ts - last_ts).total_seconds() / 3600.0
+                        added_hours = (failure_ts - effective_last_ts).total_seconds() / 3600.0
                         maintenance_candidates.append(pid)
                 except Exception:
                     errors.append(f"{pid}: invalid failure datetime format.")

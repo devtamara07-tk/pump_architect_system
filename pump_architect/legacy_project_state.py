@@ -151,6 +151,12 @@ def init_db(db_file):
         except sqlite3.OperationalError:
             pass
 
+    # Per-tank start dates: JSON {"Water Tank 1": "YYYY-MM-DD HH:MM:SS", ...}
+    try:
+        c.execute("ALTER TABLE projects ADD COLUMN tank_start_dates TEXT")
+    except sqlite3.OperationalError:
+        pass
+
     c.execute('''CREATE TABLE IF NOT EXISTS project_records (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         project_id TEXT NOT NULL,
@@ -165,6 +171,12 @@ def init_db(db_file):
         ack_alarm INTEGER DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )''')
+
+    # active_tanks: "ALL" or "||"-delimited tank names contributed to this record
+    try:
+        c.execute("ALTER TABLE project_records ADD COLUMN active_tanks TEXT DEFAULT 'ALL'")
+    except sqlite3.OperationalError:
+        pass
 
     c.execute('''CREATE TABLE IF NOT EXISTS maintenance_events (
         id INTEGER PRIMARY KEY AUTOINCREMENT,

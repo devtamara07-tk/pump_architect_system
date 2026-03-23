@@ -24,6 +24,11 @@ def initialize_add_record_draft():
     if "save_completed" not in draft:
         draft["save_completed"] = False
 
+    if "activating_tanks" not in draft:
+        draft["activating_tanks"] = []
+    if "active_tanks" not in draft:
+        draft["active_tanks"] = []
+
     return draft
 
 

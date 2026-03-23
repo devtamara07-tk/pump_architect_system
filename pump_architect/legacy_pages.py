@@ -22,14 +22,54 @@ def route_simple_pages(page, render_project_form, render_add_record_wizard, rend
 
 
 def render_home_page(db_file, handle_open_project, handle_modify_project):
+    st.markdown(
+        """
+        <style>
+            div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7) button) > div:nth-child(5) button {
+                background: linear-gradient(180deg, #f4f7fb 0%, #dce4ef 100%) !important;
+                color: #09111a !important;
+                border: 1px solid #c4d1de !important;
+            }
+
+            div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7) button) > div:nth-child(5) button * {
+                color: #09111a !important;
+                fill: #09111a !important;
+            }
+
+            div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7) button) > div:nth-child(6) button {
+                background: linear-gradient(180deg, #ffd978 0%, #f3b63f 100%) !important;
+                color: #201300 !important;
+                border: 1px solid #d19a2d !important;
+            }
+
+            div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7) button) > div:nth-child(6) button * {
+                color: #201300 !important;
+                fill: #201300 !important;
+            }
+
+            div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7) button) > div:nth-child(7) button {
+                background: linear-gradient(180deg, #ff7f7f 0%, #dc4c4c 100%) !important;
+                color: #ffffff !important;
+                border: 1px solid #b53737 !important;
+            }
+
+            div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7) button) > div:nth-child(7) button * {
+                color: #ffffff !important;
+                fill: #ffffff !important;
+            }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
     st.markdown('<div class="hero-bg"><h1 style="color:white; letter-spacing:2px; font-size:3rem;">PUMP ARCHITECT SYSTEM</h1><p style="color:#aaa; font-size:1.5rem;">Control Center v2.0</p></div>', unsafe_allow_html=True)
 
-    if st.button("Create New Project"):
+    if st.button("Create New Project", type="primary"):
         for k in [
             "project_name", "proj_type", "test_type", "run_mode", "target_val", "target_unit",
             "specs_df", "layout_df", "water_tanks", "hardware_list", "var_mapping_df", "formulas_df",
             "watchdogs_df", "watchdog_matrix_df", "limits_df", "extra_limits_df", "event_log", "wizard_step", "current_project", "dashboard_main_tracker",
-            "add_record_draft", "maintenance_prefill_pumps", "maintenance_source_record_id"
+            "add_record_draft", "maintenance_prefill_pumps", "maintenance_source_record_id", "target_val_input"
         ]:
             if k in st.session_state:
                 del st.session_state[k]
@@ -68,7 +108,11 @@ def render_home_page(db_file, handle_open_project, handle_modify_project):
         confirm_key = f"delete_confirm_{idx}"
 
         if st.session_state.get(confirm_key, False):
-            if c[6].button("⚠️ CONFIRM", key=f"conf_{idx}", use_container_width=True, type="primary"):
+            if c[6].button("Cancel", key=f"can_{idx}", use_container_width=True):
+                del st.session_state[confirm_key]
+                st.rerun()
+
+            if c[6].button("DANGER Confirm Delete Project", key=f"conf_{idx}", use_container_width=True, type="primary"):
                 conn = sqlite3.connect(db_file)
                 conn.execute("DELETE FROM projects WHERE project_id=?", (p[0],))
 
@@ -84,12 +128,8 @@ def render_home_page(db_file, handle_open_project, handle_modify_project):
                 conn.close()
                 del st.session_state[confirm_key]
                 st.rerun()
-
-            if c[6].button("Cancel", key=f"can_{idx}", use_container_width=True):
-                del st.session_state[confirm_key]
-                st.rerun()
         else:
-            if c[6].button("Delete", key=f"d{idx}", use_container_width=True):
+            if c[6].button("Delete Project", key=f"d{idx}", use_container_width=True):
                 st.session_state[confirm_key] = True
                 st.rerun()
 

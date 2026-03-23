@@ -1,7 +1,7 @@
 import streamlit as st
 
 
-def render_phase1(draft, baseline_exists, queue_confirmation_fn):
+def render_phase1(draft, baseline_exists, queue_confirmation_fn, activating_tanks=None):
     st.markdown("<p class='col-header'>Phase 1: Initialization & Pre-Flight Checks</p>", unsafe_allow_html=True)
     selected_phase = st.radio(
         "Select Record Phase",
@@ -18,6 +18,13 @@ def render_phase1(draft, baseline_exists, queue_confirmation_fn):
         st.error("ERROR: No baseline found. Complete Baseline Calibration first.")
     if selected_phase == "Baseline Calibration (Cold State)" and baseline_exists:
         st.warning("WARNING: Overwriting existing baseline.")
+
+    if activating_tanks:
+        st.info(
+            f"Tank(s) **{', '.join(activating_tanks)}** will be activated with this record. "
+            "Their pumps will be recorded as STANDBY (cold initial state) and accumulation "
+            "hours will start from this record's timestamp."
+        )
 
     if st.button("Confirm Record Phase", use_container_width=True, key="confirm_record_phase"):
         if can_continue_phase1:

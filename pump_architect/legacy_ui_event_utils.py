@@ -71,6 +71,11 @@ def inject_industrial_css():
                 height: 45px !important;
             }
 
+            div.stButton > button * {
+                color: #000000 !important;
+                fill: #000000 !important;
+            }
+
             /* PRIMARY BUTTON (Finish & Save) */
             div.stButton > button[kind="primary"] {
                 background-color: #0d6efd !important;
@@ -78,10 +83,46 @@ def inject_industrial_css():
                 border: none !important;
             }
 
+            div.stButton > button[kind="primary"] * {
+                color: #FFFFFF !important;
+                fill: #FFFFFF !important;
+            }
+
+            button[aria-label^="DANGER "] {
+                background: linear-gradient(180deg, #ff7f7f 0%, #dc4c4c 100%) !important;
+                color: #FFFFFF !important;
+                border: 1px solid #b53737 !important;
+            }
+
+            button[aria-label^="DANGER "] * {
+                color: #FFFFFF !important;
+                fill: #FFFFFF !important;
+            }
+
             /* --- INDUSTRIAL UI FIXES --- */
             /* Table/Input Data Editor Sizes */
             div[data-testid="stDataEditor"] { background-color: #1C1F24 !important; border: 1px solid #444 !important; font-size: 16px !important; }
             div[data-testid="stTextInput"] input, div[data-testid="stNumberInput"] input { background-color: #1C1F24 !important; color: white !important; border: 1px solid #444 !important; font-size: 16px !important; }
+
+            /* --- DROPDOWN POPUP MENU (selectbox / multiselect) --- */
+            [data-baseweb="popover"] > div,
+            [data-baseweb="menu"] {
+                background-color: #1C1F24 !important;
+                border: 1px solid #444 !important;
+                border-radius: 8px !important;
+            }
+            [data-baseweb="menu"] [role="option"],
+            [role="listbox"] [role="option"] {
+                background-color: #1C1F24 !important;
+                color: #E0E0E0 !important;
+                font-size: 15px !important;
+            }
+            [data-baseweb="menu"] [role="option"]:hover,
+            [data-baseweb="menu"] [aria-selected="true"],
+            [role="listbox"] [role="option"][aria-selected="true"] {
+                background-color: #1E3A5F !important;
+                color: #4DA3FF !important;
+            }
 
             /* Alerts: replace yellow/red low-contrast with dark panel + white text */
             div[data-testid="stAlert"] {

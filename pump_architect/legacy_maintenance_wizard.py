@@ -49,8 +49,14 @@ def render_add_maintenance_wizard(
     prefill_record_id = st.session_state.get("maintenance_source_record_id", None)
     default_selection = [p for p in prefill_pumps if p in pump_ids]
 
-    event_ts_default = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    event_ts = st.text_input("Maintenance Timestamp (YYYY-MM-DD HH:MM:SS)", value=event_ts_default, key="maintenance_event_ts")
+    if "maintenance_event_ts" not in st.session_state:
+        st.session_state.maintenance_event_ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    if "maintenance_action_taken" not in st.session_state:
+        st.session_state.maintenance_action_taken = ""
+    if "maintenance_notes" not in st.session_state:
+        st.session_state.maintenance_notes = ""
+
+    event_ts = st.text_input("Maintenance Timestamp (YYYY-MM-DD HH:MM:SS)", key="maintenance_event_ts")
     ts_ok = True
     try:
         _ = parse_ts_fn(event_ts)
@@ -80,8 +86,8 @@ def render_add_maintenance_wizard(
         index=0,
         key="maintenance_status",
     )
-    action_taken = st.text_area("Action Taken", value="", key="maintenance_action_taken", height=120)
-    notes = st.text_area("Notes", value="", key="maintenance_notes", height=120)
+    action_taken = st.text_area("Action Taken", key="maintenance_action_taken", height=120)
+    notes = st.text_area("Notes", key="maintenance_notes", height=120)
 
     can_save = ts_ok and len(affected_pumps) > 0
     if not affected_pumps:
@@ -117,6 +123,9 @@ def render_add_maintenance_wizard(
 
             st.session_state.maintenance_prefill_pumps = []
             st.session_state.maintenance_source_record_id = None
+            st.session_state.pop("maintenance_event_ts", None)
+            st.session_state.pop("maintenance_action_taken", None)
+            st.session_state.pop("maintenance_notes", None)
             queue_confirmation_fn("Maintenance event saved.")
             st.session_state.page = "dashboard"
             st.rerun()
@@ -162,7 +171,7 @@ def render_add_maintenance_wizard(
 
             selected_label = st.selectbox("Select Maintenance Event", options=[x[0] for x in update_options], key="maintenance_update_select")
             new_status = st.selectbox("New Status", options=["Open", "In Progress", "Closed"], key="maintenance_update_status")
-            if st.button("Apply Status Update", use_container_width=True, key="maintenance_update_apply"):
+            if st.button("Apply Status Update", use_container_width=True, type="primary", key="maintenance_update_apply"):
                 selected_id = None
                 for label, eid in update_options:
                     if label == selected_label:

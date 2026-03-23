@@ -11,11 +11,42 @@ from pump_architect import legacy_ui_event_utils
 def render_project_form(db_file):
     legacy_ui_event_utils.inject_industrial_css()
     step = st.session_state.wizard_step
+    st.markdown(
+        """
+        <style>
+            .wizard-step-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 0.5rem;
+            }
+
+            .wizard-project-name {
+                margin-top: 1.25rem;
+                padding: 0.9rem 1rem;
+                border-radius: 12px;
+                border: 1px solid rgba(77, 163, 255, 0.28);
+                background: rgba(13, 110, 253, 0.12);
+                color: #d7e9ff;
+                font-size: 1.1rem;
+                font-weight: 600;
+            }
+
+            .wizard-project-name strong {
+                color: #4DA3FF !important;
+                letter-spacing: 0.02em;
+            }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
     st.markdown(f"<p style='text-align:right; color:white; font-size:18px;'>Step {step} of 6</p>", unsafe_allow_html=True)
     st.progress(step / 6.0)
 
-    if st.button("Cancel & Return"):
-        st.session_state.page = "home"; st.rerun()
+    cancel_col, _ = st.columns([1.2, 6])
+    with cancel_col:
+        if st.button("Cancel & Return", use_container_width=True):
+            st.session_state.page = "home"; st.rerun()
 
     # STEP 1: TEST DEFINITION ---
     # --- STEP 1: TEST DEFINITION ---
@@ -43,7 +74,7 @@ def render_project_form(db_file):
         if "target_val_input" not in st.session_state:
             st.session_state.target_val_input = str(st.session_state.get("target_val", "1.0"))
 
-        target_val_text = st.text_input("Target Value", value=st.session_state.target_val_input, key="target_val_input")
+        target_val_text = st.text_input("Target Value", key="target_val_input")
         target_value_valid = True
         try:
             parsed_target = float(str(target_val_text).strip())
@@ -66,15 +97,20 @@ def render_project_form(db_file):
         project_name = f"{proj_type} {test_type} {run_mode} {st.session_state.get('target_val', target_val_text)} {target_unit}"
         st.session_state.project_name = project_name
 
-        st.markdown(f"<div style='margin-top:20px; color:#0d6efd; font-size:20px; font-weight:bold;'>Project Name: {project_name}</div>", unsafe_allow_html=True)
+        st.markdown(
+            f"<div class='wizard-project-name'>Project Name: <strong>{project_name}</strong></div>",
+            unsafe_allow_html=True,
+        )
 
         st.write("")
-        if st.button("Next Step"):
-            if target_value_valid:
-                st.session_state.wizard_step = 2
-                st.rerun()
-            else:
-                st.error("Please fix Target Value before continuing.")
+        next_col, _ = st.columns([1.15, 5.85])
+        with next_col:
+            if st.button("Next Step", type="primary", use_container_width=True):
+                if target_value_valid:
+                    st.session_state.wizard_step = 2
+                    st.rerun()
+                else:
+                    st.error("Please fix Target Value before continuing.")
 
    # STEP 2: Full Pump Specification
     elif step == 2:
@@ -115,7 +151,7 @@ def render_project_form(db_file):
             )
 
             # The "Enter" clause - This processes everything at once
-            submitted = st.form_submit_button("Confirm Table Entries", use_container_width=True)
+            submitted = st.form_submit_button("Confirm Table Entries", use_container_width=True, type="primary")
 
             if submitted:
                 # Defensive: Check if 'Pump Model' column exists after editing
@@ -130,13 +166,13 @@ def render_project_form(db_file):
 
         # 3. Navigation Buttons (Outside the form)
         st.write("")
-        b1, b2 = st.columns(2)
+        b1, b2, _ = st.columns([1.1, 1.1, 3.8])
         with b1:
             if st.button("Back", use_container_width=True):
                 st.session_state.wizard_step = 1
                 st.rerun()
         with b2:
-            if st.button("Next", use_container_width=True):
+            if st.button("Next", use_container_width=True, type="primary"):
                 # Check if they confirmed the table first
                 if not st.session_state.specs_df.empty:
                     st.session_state.wizard_step = 3
@@ -153,10 +189,10 @@ def render_project_form(db_file):
             st.session_state.water_tanks = ["Water Tank 1"]
 
         # 2. Buttons to Manage Tanks (Now on Top)
-        col_t1, col_t2, col_t3 = st.columns([2, 1, 1])
+        _, col_t2, col_t3 = st.columns([3.5, 1.1, 1.2])
 
         with col_t2:
-            if st.button("Add Tank", use_container_width=True, key="add_tank_btn"):
+            if st.button("Add Tank", use_container_width=True, type="primary", key="add_tank_btn"):
                 new_tank_num = len(st.session_state.water_tanks) + 1
                 st.session_state.water_tanks.append(f"Water Tank {new_tank_num}")
                 st.rerun()
@@ -184,6 +220,24 @@ def render_project_form(db_file):
             f"</div>",
             unsafe_allow_html=True
         )
+
+        st.divider()
+        # 3. Display Active Tanks (Moved Below, Larger Font, Left Aligned)
+        st.markdown(
+            f"<div style='text-align: left; margin-top: 15px; margin-bottom: 10px;'>"
+            f"<span style='color: white; font-size: 22px; font-weight: bold;'>Active Tanks: </span>"
+            f"<span style='color: #4DA3FF; font-size: 22px; font-weight: 500;'>{' &nbsp;|&nbsp; '.join(st.session_state.water_tanks)}</span>"
+            f"</div>",
+            unsafe_allow_html=True
+        )
+
+        if len(st.session_state.water_tanks) > 1:
+            st.info(
+                "Multiple tanks configured. Each tank's **start date** is recorded automatically "
+                "the first time you activate it inside the **Add New Record** wizard. "
+                "Pumps in tanks that have not yet been activated are locked to STANDBY "
+                "and do not accumulate run hours until their tank is activated."
+            )
 
         st.divider()
 
@@ -226,7 +280,7 @@ def render_project_form(db_file):
                 key="layout_master_editor"
             )
 
-            confirm = st.form_submit_button("Confirm Layout Changes", use_container_width=True)
+            confirm = st.form_submit_button("Confirm Layout Changes", use_container_width=True, type="primary")
             if confirm:
                 st.session_state.layout_df = updated_layout.reset_index(drop=True)
                 legacy_ui_event_utils.queue_confirmation("Layout mappings saved.")
@@ -234,13 +288,13 @@ def render_project_form(db_file):
 
         # 6. Navigation
         st.write("")
-        b1, b2 = st.columns(2)
+        b1, b2, _ = st.columns([1.1, 1.1, 3.8])
         with b1:
             if st.button("Back", use_container_width=True, key="back_step3"):
                 st.session_state.wizard_step = 2
                 st.rerun()
         with b2:
-            if st.button("Next", use_container_width=True, key="next_step3"):
+            if st.button("Next", use_container_width=True, type="primary", key="next_step3"):
                 if "updated_layout" in locals():
                     st.session_state.layout_df = updated_layout.reset_index(drop=True)
                 st.session_state.wizard_step = 4
@@ -297,22 +351,22 @@ def render_project_form(db_file):
         col1, col2, col3, col4, col5 = st.columns(5)
 
         with col1:
-            if st.button("HIOKI Temp", use_container_width=True, key="add_htemp"):
+            if st.button("HIOKI Temp", use_container_width=True, type="primary", key="add_htemp"):
                 count = sum(1 for hw in st.session_state.hardware_list if "HIOKI Temp" in hw)
                 st.session_state.hardware_list.append(f"HIOKI Temp {count + 1}")
                 st.rerun()
         with col2:
-            if st.button("HIOKI Power", use_container_width=True, key="add_hpower"):
+            if st.button("HIOKI Power", use_container_width=True, type="primary", key="add_hpower"):
                 count = sum(1 for hw in st.session_state.hardware_list if "HIOKI Power" in hw)
                 st.session_state.hardware_list.append(f"HIOKI Power {count + 1}")
                 st.rerun()
         with col3:
-            if st.button("HIOKI Clamp", use_container_width=True, key="add_hclamp"):
+            if st.button("HIOKI Clamp", use_container_width=True, type="primary", key="add_hclamp"):
                 count = sum(1 for hw in st.session_state.hardware_list if "HIOKI Clamp" in hw)
                 st.session_state.hardware_list.append(f"HIOKI Clamp {count + 1}")
                 st.rerun()
         with col4:
-            if st.button("General HW", use_container_width=True, key="add_gen"):
+            if st.button("General HW", use_container_width=True, type="primary", key="add_gen"):
                 count = sum(1 for hw in st.session_state.hardware_list if "General HW" in hw)
                 st.session_state.hardware_list.append(f"General HW {count + 1}")
                 st.rerun()
@@ -415,7 +469,7 @@ def render_project_form(db_file):
                     )
                     st.divider()
 
-                confirm = st.form_submit_button("Confirm Hardware Setup", use_container_width=True)
+                confirm = st.form_submit_button("Confirm Hardware Setup", use_container_width=True, type="primary")
                 if confirm:
                     for key, edited_df in updated_dfs.items():
                         st.session_state[key] = edited_df
@@ -426,13 +480,13 @@ def render_project_form(db_file):
 
         # 5. Navigation
         st.write("")
-        b1, b2 = st.columns(2)
+        b1, b2, _ = st.columns([1.1, 1.1, 3.8])
         with b1:
             if st.button("Back", use_container_width=True, key="back_step4"):
                 st.session_state.wizard_step = 3
                 st.rerun()
         with b2:
-            if st.button("Next", use_container_width=True, key="next_step4"):
+            if st.button("Next", use_container_width=True, type="primary", key="next_step4"):
                 if 'updated_dfs' in locals():
                     for key, edited_df in updated_dfs.items():
                         st.session_state[key] = edited_df
@@ -539,7 +593,7 @@ def render_project_form(db_file):
             )
 
             st.write("")
-            confirm = st.form_submit_button("Confirm Formulas", use_container_width=True)
+            confirm = st.form_submit_button("Confirm Formulas", use_container_width=True, type="primary")
             if confirm:
                 st.session_state.var_mapping_df = updated_vars.reset_index(drop=True)
                 st.session_state.formulas_df = updated_forms.reset_index(drop=True)
@@ -548,13 +602,13 @@ def render_project_form(db_file):
 
         # 4. NAVIGATION
         st.write("")
-        b1, b2 = st.columns(2)
+        b1, b2, _ = st.columns([1.1, 1.1, 3.8])
         with b1:
             if st.button("Back", use_container_width=True, key="back_step5"):
                 st.session_state.wizard_step = 4
                 st.rerun()
         with b2:
-            if st.button("Next", use_container_width=True, key="next_step5"):
+            if st.button("Next", use_container_width=True, type="primary", key="next_step5"):
                 if 'updated_vars' in locals():
                     st.session_state.var_mapping_df = updated_vars.reset_index(drop=True)
                     st.session_state.formulas_df = updated_forms.reset_index(drop=True)
@@ -666,7 +720,7 @@ def render_project_form(db_file):
                 num_rows="fixed"
             )
 
-            save_watchdogs = st.form_submit_button("Confirm Watchdog Setup", use_container_width=True)
+            save_watchdogs = st.form_submit_button("Confirm Watchdog Setup", use_container_width=True, type="primary")
             if save_watchdogs:
                 st.session_state.watchdog_matrix_df = edited_wd_matrix.reset_index(drop=True)
                 expanded = []
@@ -789,7 +843,7 @@ def render_project_form(db_file):
                 num_rows="dynamic"
             )
 
-            save_limits = st.form_submit_button("Confirm Safety Limits", use_container_width=True)
+            save_limits = st.form_submit_button("Confirm Safety Limits", use_container_width=True, type="primary")
             if save_limits:
                 st.session_state.limits_df = edited_lim.reset_index(drop=True)
                 st.session_state.extra_limits_df = edited_extra_lim.reset_index(drop=True)
@@ -973,7 +1027,7 @@ def render_project_form(db_file):
         else:
             st.warning("No tank or pump layout found. Please complete previous steps.")
 
-        if st.button("Confirm Dashboard Visual Layout Preview", use_container_width=True, key="confirm_dashboard_preview"):
+        if st.button("Confirm Dashboard Visual Layout Preview", use_container_width=True, type="primary", key="confirm_dashboard_preview"):
             legacy_ui_event_utils.queue_confirmation("Dashboard visual layout preview confirmed.")
             st.rerun()
 
@@ -981,7 +1035,7 @@ def render_project_form(db_file):
 
         # --- 5. FINAL SAVE LOGIC ---
         st.markdown("<p style='color: white; font-size: 18px; font-weight: bold;'>4. Finalize & Save</p>", unsafe_allow_html=True)
-        c1, c2 = st.columns([1, 4])
+        c1, c2, _ = st.columns([1.1, 1.5, 3.4])
         if c1.button("Back", key="back_s6"):
             st.session_state.wizard_step = 5
             st.rerun()

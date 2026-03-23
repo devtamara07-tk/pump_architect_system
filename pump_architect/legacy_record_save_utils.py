@@ -10,6 +10,7 @@ def save_project_record(
     draft,
     all_alarms,
     alarm_ack,
+    active_tanks=None,
 ):
     conn = sqlite3.connect(db_file)
     c = conn.cursor()
@@ -19,12 +20,14 @@ def save_project_record(
             (project_id, "Baseline Calibration (Cold State)"),
         )
 
+    active_tanks_str = "||".join(active_tanks) if active_tanks else "ALL"
     c.execute(
         """
         INSERT INTO project_records (
             project_id, record_phase, record_ts, method, ambient_temp,
-            tank_temps_json, status_grid_json, pump_readings_json, alarms_json, ack_alarm
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            tank_temps_json, status_grid_json, pump_readings_json, alarms_json,
+            ack_alarm, active_tanks
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             project_id,
@@ -37,6 +40,7 @@ def save_project_record(
             json.dumps(draft.get("pump_readings", {})),
             json.dumps(all_alarms),
             1 if all_alarms and alarm_ack else 0,
+            active_tanks_str,
         ),
     )
     saved_record_id = c.lastrowid

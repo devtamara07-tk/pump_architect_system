@@ -1,4 +1,5 @@
 import datetime
+import json
 
 import pandas as pd
 import streamlit as st
@@ -229,17 +230,39 @@ def render_add_record_wizard(db_file):
     if delta_rows:
         st.dataframe(pd.DataFrame(delta_rows), use_container_width=True, hide_index=True)
 
-    # Combine previous grids: use each tank's own latest record
+    # Combine previous grids using all tanks so inactive-tank carry-forward
+    # reflects each tank's latest known status.
+    latest_records_by_all_tanks = {
+        t: legacy_db_utils.get_latest_record_for_tank(db_file, project_id, t)
+        for t in water_tanks
+    }
     previous_grid = {}
-    for t, rec in latest_records_by_tank.items():
-        if rec and rec.get("status_grid"):
-            previous_grid.update(rec["status_grid"])
+    for t, rec in latest_records_by_all_tanks.items():
+        if not rec or not rec.get("status_grid"):
+            continue
+        for pid, payload in rec["status_grid"].items():
+            pid = str(pid).strip()
+            if not pid:
+                continue
+            if pump_tank_lookup.get(pid) != t:
+                continue
+            previous_grid[pid] = payload
 
     # Status editor: active-tank pumps only
+    status_editor_source_sig = "|".join(
+        f"{tank}:{(latest_records_by_tank.get(tank) or {}).get('id', 'none')}"
+        for tank in active_tanks_for_record
+    )
+    status_editor_key = f"status_grid_editor::{draft['record_phase']}::{','.join(active_tanks_for_record)}::{status_editor_source_sig}"
+
     status_df = legacy_phase2_utils.build_status_rows(active_pump_ids, previous_grid, draft["record_phase"])
     if draft["record_phase"] == "Baseline Calibration (Cold State)":
+        baseline_display_df = status_df[["Pump ID", "Previous Status", "Accumulated Time (hrs)", "New Status"]].copy()
+        baseline_display_df["Accumulated Time (hrs)"] = pd.to_numeric(
+            baseline_display_df["Accumulated Time (hrs)"], errors="coerce"
+        ).fillna(0).round(0).astype(int)
         st.dataframe(
-            status_df[["Pump ID", "Previous Status", "Accumulated Time (hrs)", "New Status"]],
+            baseline_display_df,
             use_container_width=True, hide_index=True,
         )
         edited_status_df = status_df.copy()
@@ -249,11 +272,11 @@ def render_add_record_wizard(db_file):
             hide_index=True,
             use_container_width=True,
             num_rows="fixed",
-            key="status_grid_editor",
+            key=status_editor_key,
             column_config={
                 "Pump ID": st.column_config.TextColumn("Pump ID", disabled=True),
                 "Previous Status": st.column_config.TextColumn("Previous Status", disabled=True),
-                "Accumulated Time (hrs)": st.column_config.NumberColumn("Accumulated Time (hrs)", disabled=True, format="%.2f"),
+                "Accumulated Time (hrs)": st.column_config.NumberColumn("Accumulated Time (hrs)", disabled=True, format="%.0f"),
                 "New Status": st.column_config.SelectboxColumn("New Status", options=["RUNNING", "STANDBY", "PAUSED", "FAILED"], required=True),
                 "Failure DateTime (YYYY-MM-DD HH:MM:SS)": st.column_config.TextColumn("Failure DateTime (YYYY-MM-DD HH:MM:SS)"),
             },
@@ -263,9 +286,10 @@ def render_add_record_wizard(db_file):
     if inactive_pump_ids:
         with st.expander(f"Inactive tanks — {len(inactive_pump_ids)} pump(s) locked to STANDBY", expanded=False):
             inactive_df = legacy_phase2_utils.build_status_rows(inactive_pump_ids, previous_grid, "Baseline Calibration (Cold State)")
-            st.dataframe(
-                inactive_df[["Pump ID", "Previous Status", "Accumulated Time (hrs)", "New Status"]],
-                use_container_width=True, hide_index=True,
+            inactive_pump_list = ", ".join(inactive_df["Pump ID"].tolist())
+            st.markdown(
+                f"<p style='color:#9CA3AF; font-size:13px;'>Inactive pumps carried forward unchanged: <b>{inactive_pump_list}</b>.</p>",
+                unsafe_allow_html=True,
             )
 
     phase2_col, _ = st.columns([1.7, 4.3])
@@ -337,6 +361,28 @@ def render_add_record_wizard(db_file):
     temp_units, clamp_units = legacy_state_utils.build_phase4_hardware_plan(active_pump_ids, draft["status_grid"])
     pump_readings = {}
     previous_readings = draft.get("pump_readings", {})
+    if not isinstance(previous_readings, dict):
+        previous_readings = {}
+
+    # Seed missing per-pump readings from each tank's latest record so
+    # inactive-tank standby cards keep their latest known values.
+    for t, rec in latest_records_by_all_tanks.items():
+        if not rec:
+            continue
+        try:
+            rec_readings = json.loads(rec.get("pump_readings_json") or "{}")
+        except Exception:
+            rec_readings = {}
+        if not isinstance(rec_readings, dict):
+            continue
+        for pid, payload in rec_readings.items():
+            pid = str(pid).strip()
+            if not pid:
+                continue
+            if pump_tank_lookup.get(pid) != t:
+                continue
+            if pid not in previous_readings:
+                previous_readings[pid] = payload
     saved_temp_tables = draft.get("phase4_temp_tables", {})
     saved_clamp_tables = draft.get("phase4_clamp_tables", {})
 

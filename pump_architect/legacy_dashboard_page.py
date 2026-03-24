@@ -550,7 +550,13 @@ def render_dashboard_page(
                         record_reading = latest_readings_by_pump.get(p_id, {}) if isinstance(latest_readings_by_pump, dict) else {}
                         record_status = str(record_grid.get("status", "STANDBY")).upper()
                         record_alarm = p_id in alarm_pump_ids
-                        running_time_value = f"{float(record_grid.get('acc_hours', 0.0) or 0.0):.1f} / {target_val} {running_time_unit}"
+                        acc_hours_raw = float(record_grid.get('acc_hours', 0.0) or 0.0)
+                        acc_hours_display = int(round(acc_hours_raw))
+                        try:
+                            target_display = int(round(float(target_val)))
+                        except Exception:
+                            target_display = target_val
+                        running_time_value = f"{acc_hours_display} / {target_display} {running_time_unit}"
 
                         if record_status == "RUNNING":
                             status_color = "value-green"

@@ -53,10 +53,7 @@ def build_clamp_editor_rows(unit, saved_clamp_tables, previous_readings, limits_
         lim = limits_lookup.get(pid)
         max_current = safe_float_fn(lim.get("Max Current (A)", 0.0) if lim is not None else 0.0, 0.0)
         prior_amps = safe_float_fn(previous_readings.get(pid, {}).get("amps"), 0.0)
-        if row["Status"] in ["STANDBY", "PAUSED"]:
-            current_value = 0.0
-        else:
-            current_value = safe_float_fn(saved_lookup.get(pid, {}).get("Reading (A)"), prior_amps)
+        current_value = safe_float_fn(saved_lookup.get(pid, {}).get("Reading (A)"), prior_amps)
         editor_rows.append({
             "Pump ID": pid,
             "Sensor Name": row["Sensor Name"],
@@ -144,13 +141,13 @@ def process_phase4_confirmation(
             reading = row.get("Reading (A)")
             if not pump_id:
                 continue
-            if status == "RUNNING":
-                if reading != reading:
+            if reading != reading:
+                if status == "RUNNING":
                     errors.append(f"{hw_name} {pump_id}: current is required.")
                     continue
-                current_candidates.setdefault(pump_id, []).append(float(reading))
-            elif status in ["STANDBY", "PAUSED"]:
                 current_candidates.setdefault(pump_id, []).append(0.0)
+            else:
+                current_candidates.setdefault(pump_id, []).append(float(reading))
 
     for pid in fallback_clamp_pumps:
         current_candidates.setdefault(pid, []).append(safe_float_fn(fallback_clamp_values.get(pid), 0.0))
@@ -168,11 +165,8 @@ def process_phase4_confirmation(
         if derived_temp is None:
             derived_temp = safe_float_fn(previous_readings.get(pid, {}).get("temp"), 0.0)
 
-        if status in ["STANDBY", "PAUSED"]:
-            derived_amps = 0.0
-        else:
-            current_values = current_candidates.get(pid, [])
-            derived_amps = max(current_values) if current_values else safe_float_fn(previous_readings.get(pid, {}).get("amps"), 0.0)
+        current_values = current_candidates.get(pid, [])
+        derived_amps = max(current_values) if current_values else safe_float_fn(previous_readings.get(pid, {}).get("amps"), 0.0)
 
         pump_readings[pid] = {
             "temp": float(derived_temp),

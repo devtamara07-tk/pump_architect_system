@@ -1,5 +1,9 @@
 # Runtime database – created automatically by the app on first run
 architect_system.db
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
 
 # Python
 __pycache__/
@@ -18,13 +22,19 @@ venv/
 env/
 ENV/
 
+# pip cache (never commit this)
+pip-wheel-metadata/
+
 # Streamlit secrets (may contain credentials)
 .streamlit/secrets.toml
 
 # IDE / editor
-.vscode/settings.json
+.vscode/
 .idea/
 
 # OS
 .DS_Store
 Thumbs.db
+
+# Jupyter notebook checkpoints
+.ipynb_checkpoints/

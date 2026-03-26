@@ -111,6 +111,7 @@ def init_db_postgres(database_url):
     try:
         conn = psycopg2.connect(database_url)
         c = conn.cursor()
+        # Create projects table
         c.execute('''
             CREATE TABLE IF NOT EXISTS projects (
                 project_id TEXT PRIMARY KEY,
@@ -133,6 +134,57 @@ def init_db_postgres(database_url):
                 run_mode TEXT,
                 target_val TEXT,
                 tank_start_dates TEXT
+            )
+        ''')
+        # Create pumps table
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS pumps (
+                pump_id TEXT,
+                project_id TEXT,
+                "Pump Model" TEXT,
+                "ISO No." TEXT,
+                HP TEXT,
+                kW TEXT,
+                "Voltage (V)" TEXT,
+                "Amp Min" TEXT,
+                "Amp Max" TEXT,
+                Phase TEXT,
+                Hertz TEXT,
+                Insulation TEXT
+            )
+        ''')
+        # Create project_records table
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS project_records (
+                id SERIAL PRIMARY KEY,
+                project_id TEXT NOT NULL,
+                record_phase TEXT NOT NULL,
+                record_ts TEXT NOT NULL,
+                method TEXT,
+                ambient_temp REAL,
+                tank_temps_json TEXT,
+                status_grid_json TEXT,
+                pump_readings_json TEXT,
+                alarms_json TEXT,
+                ack_alarm INTEGER DEFAULT 0,
+                active_tanks TEXT DEFAULT 'ALL',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        # Create maintenance_events table
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS maintenance_events (
+                id SERIAL PRIMARY KEY,
+                project_id TEXT NOT NULL,
+                event_ts TEXT NOT NULL,
+                affected_pumps_json TEXT NOT NULL,
+                event_type TEXT,
+                severity TEXT,
+                maintenance_status TEXT,
+                action_taken TEXT,
+                notes TEXT,
+                source_record_id INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
         conn.commit()

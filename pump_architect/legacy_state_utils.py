@@ -69,13 +69,13 @@ def restore_project_formula_state(db_file, project_id):
     default_formulas = pd.DataFrame(columns=["Formula Name", "Target", "Equation"])
 
     conn = get_connection()
-        cur = conn.cursor()
-        cur.execute(
-            "SELECT step5_var_mapping, step5_formulas FROM projects WHERE project_id = ?",
-            (project_id,)
-        )
-        proj_row = cur.fetchone()
-        cur.close()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT step5_var_mapping, step5_formulas FROM projects WHERE project_id = ?",
+        (project_id,)
+    )
+    proj_row = cur.fetchone()
+    cur.close()
     conn.close()
 
     if not proj_row:

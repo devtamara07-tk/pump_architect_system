@@ -6,6 +6,7 @@ import pandas as pd
 import streamlit as st
 
 from pump_architect import legacy_ui_event_utils
+from pump_architect.db.connection import get_db_connection, is_postgres
 
 
 def render_project_form(db_file):
@@ -306,7 +307,7 @@ def render_project_form(db_file):
 
         # --- FORCE REHYDRATE HARDWARE STATE IF RESTORING ---
         if st.session_state.get("_restoring_project", False):
-            conn = sqlite3.connect(db_file)
+            conn = get_db_connection(db_file)
             proj_row = conn.execute("SELECT hardware_list, hardware_dfs, hardware_ds FROM projects WHERE project_id = ?", (st.session_state.get("current_project", ""),)).fetchone()
             conn.close()
             if proj_row:
@@ -1057,7 +1058,7 @@ def render_project_form(db_file):
             # --- THE DATE (TIMESTAMP) ---
             timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-            conn = sqlite3.connect(db_file)
+            conn = get_db_connection(db_file)
             c = conn.cursor()
 
             try:
@@ -1092,10 +1093,17 @@ def render_project_form(db_file):
                 step5_var_mapping_json = st.session_state.get("var_mapping_df", pd.DataFrame(columns=["Variable", "Mapped Sensor"])).to_json()
                 step5_formulas_json = st.session_state.get("formulas_df", pd.DataFrame(columns=["Formula Name", "Target", "Equation"])).to_json()
 
+                # ALTER TABLE is a no-op on Postgres (handled by wrapper) or
+                # SQLite (caught by OperationalError if column already exists).
                 try:
                     c.execute("ALTER TABLE projects ADD COLUMN watchdog_sync_ts TEXT")
                 except sqlite3.OperationalError:
                     pass
+
+                # For Postgres, DELETE first so INSERT doesn't hit a PK conflict.
+                # (INSERT OR REPLACE is converted to INSERT by the Postgres wrapper.)
+                if is_postgres(conn):
+                    c.execute("DELETE FROM projects WHERE project_id = ?", (project_name,))
 
                 c.execute("INSERT OR REPLACE INTO projects (project_id, type, test_type, run_mode, target_val, created_at, tanks, layout, hardware_list, hardware_dfs, hardware_ds, step6_watchdogs, step6_limits, step6_event_log, watchdog_sync_ts, step6_extra_limits, step6_dashboard_tracker, step5_var_mapping, step5_formulas) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (project_name, proj_type, test_type, run_mode, target_val, timestamp, tanks_str, layout_json, hardware_list_json, hardware_dfs_json, hardware_ds_json, step6_watchdogs_json, step6_limits_json, step6_event_log_json, watchdog_sync_ts, step6_extra_limits_json, step6_dashboard_tracker, step5_var_mapping_json, step5_formulas_json))

@@ -1,12 +1,12 @@
 import datetime
 import pandas as pd
-from pump_architect.db.connection import get_connection
+from pump_architect.db.connection import _read_df, get_connection
 
 
 def get_projects():
     """Return a DataFrame of all projects."""
     conn = get_connection()
-    df = pd.read_sql("SELECT * FROM projects", conn)
+    df = _read_df("SELECT * FROM projects", conn)
     conn.close()
     return df
 

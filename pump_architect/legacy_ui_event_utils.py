@@ -5,6 +5,7 @@ import sqlite3
 import pandas as pd
 import streamlit as st
 
+from pump_architect.db.connection import get_db_connection
 
 def inject_industrial_css():
     st.markdown("""
@@ -158,7 +159,7 @@ def render_confirmation_banner():
 
 def persist_event_log_for_project(db_file, project_id):
     try:
-        conn = sqlite3.connect(db_file)
+        conn = get_db_connection(db_file)
         conn.execute(
             "UPDATE projects SET step6_event_log = ? WHERE project_id = ?",
             (json.dumps(st.session_state.get("event_log", [])), project_id),
@@ -198,7 +199,7 @@ def auto_close_maintenance_for_stable_pumps(db_file, project_id, stable_pumps, g
     if not to_close_ids:
         return []
 
-    conn = sqlite3.connect(db_file)
+    conn = get_db_connection(db_file)
     for event_id in to_close_ids:
         conn.execute("UPDATE maintenance_events SET maintenance_status = ? WHERE id = ?", ("Closed", event_id))
     conn.commit()

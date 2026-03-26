@@ -3,6 +3,7 @@ import sqlite3
 import streamlit as st
 
 from pump_architect import legacy_dashboard_page
+from pump_architect.db.connection import get_db_connection, is_postgres
 
 
 def route_simple_pages(page, render_project_form, render_add_record_wizard, render_add_maintenance_wizard):
@@ -87,8 +88,9 @@ def render_home_page(db_file, handle_open_project, handle_modify_project):
     for col, txt in zip(h, ["No.", "Status", "Name", "Date", "Actions"]):
         col.markdown(f"<div class='col-header'>{txt}</div>", unsafe_allow_html=True)
 
-    conn = sqlite3.connect(db_file)
+    conn = get_db_connection(db_file)
     projs = conn.execute("SELECT project_id, type, test_type, created_at FROM projects ORDER BY created_at DESC").fetchall()
+    conn.close()
 
     for idx, p in enumerate(projs):
         c = st.columns([0.4, 1.2, 2.5, 1.3, 1.2, 1.2, 1.2])
@@ -113,19 +115,22 @@ def render_home_page(db_file, handle_open_project, handle_modify_project):
                 st.rerun()
 
             if c[6].button("DANGER Confirm Delete Project", key=f"conf_{idx}", use_container_width=True, type="primary"):
-                conn = sqlite3.connect(db_file)
-                conn.execute("DELETE FROM projects WHERE project_id=?", (p[0],))
+                del_conn = get_db_connection(db_file)
+                del_conn.execute("DELETE FROM projects WHERE project_id=?", (p[0],))
 
-                try:
-                    conn.execute("DELETE FROM pumps WHERE project_name=?", (p[0],))
-                except sqlite3.OperationalError:
-                    cursor = conn.execute("PRAGMA table_info(pumps)")
-                    cols = [info[1] for info in cursor.fetchall()]
-                    actual_col = cols[1]
-                    conn.execute(f"DELETE FROM pumps WHERE {actual_col}=?", (p[0],))
+                if is_postgres(del_conn):
+                    del_conn.execute("DELETE FROM pumps WHERE project_id=?", (p[0],))
+                else:
+                    try:
+                        del_conn.execute("DELETE FROM pumps WHERE project_name=?", (p[0],))
+                    except sqlite3.OperationalError:
+                        cursor = del_conn.execute("PRAGMA table_info(pumps)")
+                        cols = [info[1] for info in cursor.fetchall()]
+                        actual_col = cols[1]
+                        del_conn.execute(f"DELETE FROM pumps WHERE {actual_col}=?", (p[0],))
 
-                conn.commit()
-                conn.close()
+                del_conn.commit()
+                del_conn.close()
                 del st.session_state[confirm_key]
                 st.rerun()
         else:

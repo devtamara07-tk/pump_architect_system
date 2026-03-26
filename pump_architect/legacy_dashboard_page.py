@@ -5,6 +5,7 @@ import sqlite3
 import pandas as pd
 import streamlit as st
 
+from pump_architect.db.connection import get_db_connection
 
 def render_dashboard_page(
     db_file,
@@ -78,7 +79,7 @@ def render_dashboard_page(
     # 2. Fetch REAL Database Info for this Project
     project_name = st.session_state.get('current_project', 'UNKNOWN PROJECT')
 
-    conn = sqlite3.connect(db_file)
+    conn = get_db_connection(db_file)
     proj_row = conn.execute("SELECT run_mode, target_val, test_type FROM projects WHERE project_id = ?", (project_name,)).fetchone()
     conn.close()
 

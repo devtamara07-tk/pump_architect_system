@@ -11,8 +11,12 @@ from pump_architect import legacy_add_record_wizard
 from pump_architect import legacy_project_form
 from pump_architect import legacy_pages
 from pump_architect import legacy_project_state
+from pump_architect.db.connection import get_database_url
 
 # --- 1. INITIALIZATION & DATABASE ---
+# DB_FILE is the local SQLite fallback used when DATABASE_URL is not set.
+# When DATABASE_URL is set (Streamlit Cloud secrets or env var), all DB
+# operations automatically route to Neon Postgres via get_db_connection().
 DB_FILE = "architect_system.db"
 
 st.set_page_config(page_title="Pump Architect", layout="wide")

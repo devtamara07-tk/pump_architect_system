@@ -5,6 +5,7 @@ import sqlite3
 import pandas as pd
 import streamlit as st
 
+from pump_architect.db.connection import _read_df, get_db_connection
 
 def render_add_maintenance_wizard(
     db_file,
@@ -32,8 +33,10 @@ def render_add_maintenance_wizard(
         st.rerun()
 
     if "active_pumps_df" not in st.session_state or st.session_state.active_pumps_df.empty:
-        conn = sqlite3.connect(db_file)
-        st.session_state.active_pumps_df = pd.read_sql_query("SELECT * FROM pumps WHERE project_id = ?", conn, params=(project_id,))
+        conn = get_db_connection(db_file)
+        st.session_state.active_pumps_df = _read_df(
+            "SELECT * FROM pumps WHERE project_id = ?", conn, params=(project_id,)
+        )
         conn.close()
 
     pumps_df = st.session_state.get("active_pumps_df", pd.DataFrame())
@@ -95,7 +98,7 @@ def render_add_maintenance_wizard(
 
     if st.button("Save Maintenance Event", use_container_width=True, type="primary", disabled=not can_save):
         try:
-            conn = sqlite3.connect(db_file)
+            conn = get_db_connection(db_file)
             conn.execute(
                 """
                 INSERT INTO maintenance_events (
@@ -178,7 +181,7 @@ def render_add_maintenance_wizard(
                         selected_id = eid
                         break
                 if selected_id is not None:
-                    conn = sqlite3.connect(db_file)
+                    conn = get_db_connection(db_file)
                     conn.execute("UPDATE maintenance_events SET maintenance_status = ? WHERE id = ?", (new_status, selected_id))
                     conn.commit()
                     conn.close()

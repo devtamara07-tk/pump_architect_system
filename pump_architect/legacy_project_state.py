@@ -1,12 +1,12 @@
 import json
-import sqlite3
 
+from pump_architect.db.connection import get_connection
 import pandas as pd
 import streamlit as st
 
 
 def init_db(db_file):
-    conn = sqlite3.connect(db_file)
+    conn = get_connection()
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS pumps (
         pump_id TEXT,
@@ -179,8 +179,7 @@ def init_db_postgres(database_url):
                 id SERIAL PRIMARY KEY,
                 project_id TEXT NOT NULL,
                 event_ts TEXT NOT NULL,
-                affected_pumps_json TEXT NOT NULL,
-                event_type TEXT,
+                conn = get_connection()
                 severity TEXT,
                 maintenance_status TEXT,
                 action_taken TEXT,
@@ -212,41 +211,41 @@ def init_db_postgres(database_url):
     ]:
         try:
             c.execute(f"ALTER TABLE projects ADD COLUMN {col_def}")
-        except sqlite3.OperationalError:
+        except Exception:
             pass
 
     try:
         c.execute("ALTER TABLE projects ADD COLUMN tanks TEXT")
-    except sqlite3.OperationalError:
+    except Exception:
         pass
 
     try:
         c.execute("ALTER TABLE projects ADD COLUMN layout TEXT")
-    except sqlite3.OperationalError:
+    except Exception:
         pass
 
     for col in ["hardware_list", "hardware_dfs", "hardware_ds"]:
         try:
             c.execute(f"ALTER TABLE projects ADD COLUMN {col} TEXT")
-        except sqlite3.OperationalError:
+        except Exception:
             pass
 
     for col in ["step6_watchdogs", "step6_limits", "step6_event_log", "watchdog_sync_ts", "step6_extra_limits", "step6_dashboard_tracker"]:
         try:
             c.execute(f"ALTER TABLE projects ADD COLUMN {col} TEXT")
-        except sqlite3.OperationalError:
+        except Exception:
             pass
 
     for col in ["step5_var_mapping", "step5_formulas"]:
         try:
             c.execute(f"ALTER TABLE projects ADD COLUMN {col} TEXT")
-        except sqlite3.OperationalError:
+        except Exception:
             pass
 
     # Per-tank start dates: JSON {"Water Tank 1": "YYYY-MM-DD HH:MM:SS", ...}
     try:
         c.execute("ALTER TABLE projects ADD COLUMN tank_start_dates TEXT")
-    except sqlite3.OperationalError:
+    except Exception:
         pass
 
     c.execute('''CREATE TABLE IF NOT EXISTS project_records (
@@ -267,7 +266,7 @@ def init_db_postgres(database_url):
     # active_tanks: "ALL" or "||"-delimited tank names contributed to this record
     try:
         c.execute("ALTER TABLE project_records ADD COLUMN active_tanks TEXT DEFAULT 'ALL'")
-    except sqlite3.OperationalError:
+    except Exception:
         pass
 
     c.execute('''CREATE TABLE IF NOT EXISTS maintenance_events (
@@ -286,7 +285,7 @@ def init_db_postgres(database_url):
 
     try:
         c.execute("ALTER TABLE maintenance_events ADD COLUMN maintenance_status TEXT")
-    except sqlite3.OperationalError:
+    except Exception:
         pass
 
     conn.commit()
@@ -299,7 +298,7 @@ def handle_open_project(
     restore_project_hardware_state,
     restore_project_formula_state,
 ):
-    conn = sqlite3.connect(db_file)
+    conn = get_connection()
     proj_row = conn.execute(
         "SELECT project_id, type, test_type, run_mode, target_val, tanks, "
         "step6_watchdogs, step6_limits, step6_event_log, watchdog_sync_ts, "
@@ -382,7 +381,7 @@ def handle_open_project(
 
 
 def handle_modify_project(db_file, project_id, restore_project_formula_state):
-    conn = sqlite3.connect(db_file)
+    conn = get_connection()
     proj_row = conn.execute(
         "SELECT project_id, type, test_type, run_mode, target_val, tanks, "
         "layout, hardware_list, hardware_dfs, hardware_ds, step6_watchdogs, "

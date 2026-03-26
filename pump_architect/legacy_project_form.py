@@ -1094,7 +1094,7 @@ def render_project_form(db_file):
 
                 try:
                     c.execute("ALTER TABLE projects ADD COLUMN watchdog_sync_ts TEXT")
-                except sqlite3.OperationalError:
+                except Exception:
                     pass
 
                 c.execute("INSERT OR REPLACE INTO projects (project_id, type, test_type, run_mode, target_val, created_at, tanks, layout, hardware_list, hardware_dfs, hardware_ds, step6_watchdogs, step6_limits, step6_event_log, watchdog_sync_ts, step6_extra_limits, step6_dashboard_tracker, step5_var_mapping, step5_formulas) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",

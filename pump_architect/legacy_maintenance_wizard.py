@@ -178,7 +178,7 @@ def render_add_maintenance_wizard(
                         selected_id = eid
                         break
                 if selected_id is not None:
-                    conn = sqlite3.connect(db_file)
+                    conn = get_connection()
                     conn.execute("UPDATE maintenance_events SET maintenance_status = ? WHERE id = ?", (new_status, selected_id))
                     conn.commit()
                     conn.close()

@@ -114,12 +114,12 @@ def render_home_page(db_file, handle_open_project, handle_modify_project):
                 st.rerun()
 
             if c[6].button("DANGER Confirm Delete Project", key=f"conf_{idx}", use_container_width=True, type="primary"):
-                conn = sqlite3.connect(db_file)
+                conn = get_connection()
                 conn.execute("DELETE FROM projects WHERE project_id=?", (p[0],))
 
                 try:
                     conn.execute("DELETE FROM pumps WHERE project_name=?", (p[0],))
-                except sqlite3.OperationalError:
+                except Exception:
                     cursor = conn.execute("PRAGMA table_info(pumps)")
                     cols = [info[1] for info in cursor.fetchall()]
                     actual_col = cols[1]

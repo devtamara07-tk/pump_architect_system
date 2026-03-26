@@ -1,4 +1,5 @@
-import sqlite3
+
+from pump_architect.db.connection import get_connection
 
 import streamlit as st
 
@@ -87,7 +88,7 @@ def render_home_page(db_file, handle_open_project, handle_modify_project):
     for col, txt in zip(h, ["No.", "Status", "Name", "Date", "Actions"]):
         col.markdown(f"<div class='col-header'>{txt}</div>", unsafe_allow_html=True)
 
-    conn = sqlite3.connect(db_file)
+    conn = get_connection()
     projs = conn.execute("SELECT project_id, type, test_type, created_at FROM projects ORDER BY created_at DESC").fetchall()
 
     for idx, p in enumerate(projs):

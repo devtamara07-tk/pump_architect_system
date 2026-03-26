@@ -3,6 +3,8 @@ import sqlite3
 
 import streamlit as st
 
+from pump_architect.db.connection import get_legacy_conn
+
 
 def save_project_record(
     db_file,

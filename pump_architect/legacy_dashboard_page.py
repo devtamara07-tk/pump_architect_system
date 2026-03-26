@@ -5,6 +5,8 @@ import sqlite3
 import pandas as pd
 import streamlit as st
 
+from pump_architect.db.connection import get_legacy_conn
+
 
 def render_dashboard_page(
     db_file,

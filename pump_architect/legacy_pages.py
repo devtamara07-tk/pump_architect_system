@@ -3,6 +3,7 @@ import sqlite3
 import streamlit as st
 
 from pump_architect import legacy_dashboard_page
+from pump_architect.db.connection import get_legacy_conn
 
 
 def route_simple_pages(page, render_project_form, render_add_record_wizard, render_add_maintenance_wizard):

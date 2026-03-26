@@ -3,6 +3,8 @@ import sqlite3
 import pandas as pd
 import streamlit as st
 
+from pump_architect.db.connection import get_legacy_conn
+
 
 def initialize_add_record_draft():
     if "add_record_draft" not in st.session_state:

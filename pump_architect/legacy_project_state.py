@@ -4,10 +4,93 @@ import sqlite3
 import pandas as pd
 import streamlit as st
 
+from pump_architect.db.connection import get_legacy_conn, get_database_url
+
+
+def _init_db_postgres(c):
+    """Create all application tables on Postgres if they do not already exist."""
+    c.execute('''CREATE TABLE IF NOT EXISTS pumps (
+        pump_id TEXT,
+        project_id TEXT,
+        "Pump Model" TEXT,
+        "ISO No." TEXT,
+        HP TEXT,
+        kW TEXT,
+        "Voltage (V)" TEXT,
+        "Amp Min" TEXT,
+        "Amp Max" TEXT,
+        Phase TEXT,
+        Hertz TEXT,
+        Insulation TEXT
+    )''')
+
+    c.execute('''CREATE TABLE IF NOT EXISTS projects (
+        project_id TEXT PRIMARY KEY,
+        type TEXT,
+        test_type TEXT,
+        run_mode TEXT,
+        target_val TEXT,
+        created_at TIMESTAMPTZ,
+        tanks TEXT,
+        layout TEXT,
+        hardware_list TEXT,
+        hardware_dfs TEXT,
+        hardware_ds TEXT,
+        step6_watchdogs TEXT,
+        step6_limits TEXT,
+        step6_event_log TEXT,
+        watchdog_sync_ts TEXT,
+        step6_extra_limits TEXT,
+        step6_dashboard_tracker TEXT,
+        step5_var_mapping TEXT,
+        step5_formulas TEXT,
+        tank_start_dates TEXT
+    )''')
+
+    c.execute('''CREATE TABLE IF NOT EXISTS project_records (
+        id BIGSERIAL PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        record_phase TEXT NOT NULL,
+        record_ts TEXT NOT NULL,
+        method TEXT,
+        ambient_temp REAL,
+        tank_temps_json TEXT,
+        status_grid_json TEXT,
+        pump_readings_json TEXT,
+        alarms_json TEXT,
+        ack_alarm INTEGER DEFAULT 0,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        active_tanks TEXT DEFAULT \'ALL\'
+    )''')
+
+    c.execute('''CREATE TABLE IF NOT EXISTS maintenance_events (
+        id BIGSERIAL PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        event_ts TEXT NOT NULL,
+        affected_pumps_json TEXT NOT NULL,
+        event_type TEXT,
+        severity TEXT,
+        maintenance_status TEXT,
+        action_taken TEXT,
+        notes TEXT,
+        source_record_id INTEGER,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    )''')
+
 
 def init_db(db_file):
-    conn = sqlite3.connect(db_file)
+    conn = get_legacy_conn(db_file)
     c = conn.cursor()
+
+    if get_database_url():
+        # Postgres path: create all tables at once with proper types.
+        # No PRAGMA or ALTER TABLE migrations needed for a correctly provisioned DB.
+        _init_db_postgres(c)
+        conn.commit()
+        conn.close()
+        return
+
+    # SQLite path: keep the original migration logic unchanged.
     c.execute('''CREATE TABLE IF NOT EXISTS pumps (
         pump_id TEXT,
         project_id TEXT,
@@ -207,7 +290,7 @@ def handle_open_project(
     restore_project_hardware_state,
     restore_project_formula_state,
 ):
-    conn = sqlite3.connect(db_file)
+    conn = get_legacy_conn(db_file)
     proj_row = conn.execute(
         "SELECT project_id, type, test_type, run_mode, target_val, tanks, "
         "step6_watchdogs, step6_limits, step6_event_log, watchdog_sync_ts, "
@@ -290,7 +373,7 @@ def handle_open_project(
 
 
 def handle_modify_project(db_file, project_id, restore_project_formula_state):
-    conn = sqlite3.connect(db_file)
+    conn = get_legacy_conn(db_file)
     proj_row = conn.execute(
         "SELECT project_id, type, test_type, run_mode, target_val, tanks, "
         "layout, hardware_list, hardware_dfs, hardware_ds, step6_watchdogs, "

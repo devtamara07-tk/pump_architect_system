@@ -11,13 +11,24 @@ from pump_architect import legacy_add_record_wizard
 from pump_architect import legacy_project_form
 from pump_architect import legacy_pages
 from pump_architect import legacy_project_state
+from pump_architect.db.connection import get_database_url
 
 # --- 1. INITIALIZATION & DATABASE ---
-DB_FILE = "architect_system.db"
+
+DATABASE_URL = get_database_url()
+USE_POSTGRES = bool(DATABASE_URL)
+
+# DB_FILE holds either the Postgres URL (when configured) or the local SQLite
+# path.  All legacy helper functions accept this value as their ``db_file``
+# argument; the underlying connect() call will route to the right backend.
+DB_FILE = DATABASE_URL or "architect_system.db"
 
 st.set_page_config(page_title="Pump Architect", layout="wide")
 
+
 def init_db():
+    if USE_POSTGRES:
+        return legacy_project_state.init_db_postgres(DATABASE_URL)
     return legacy_project_state.init_db(DB_FILE)
 
 if "page" not in st.session_state: st.session_state.page = "home"

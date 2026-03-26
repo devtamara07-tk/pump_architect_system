@@ -4,6 +4,90 @@ import sqlite3
 import pandas as pd
 import streamlit as st
 
+from pump_architect.db.connection import connect, read_sql, _is_postgres
+
+
+def init_db_postgres(database_url):
+    """
+    Create all legacy app tables in a fresh Postgres (Neon) database.
+
+    Uses ``IF NOT EXISTS`` and ``ADD COLUMN IF NOT EXISTS`` so the function
+    is safe to call on every startup.
+    """
+    conn = connect(database_url)
+    c = conn.cursor()
+
+    c.execute('''CREATE TABLE IF NOT EXISTS pumps (
+        pump_id TEXT,
+        project_id TEXT,
+        "Pump Model" TEXT,
+        "ISO No." TEXT,
+        HP TEXT,
+        kW TEXT,
+        "Voltage (V)" TEXT,
+        "Amp Min" TEXT,
+        "Amp Max" TEXT,
+        Phase TEXT,
+        Hertz TEXT,
+        Insulation TEXT
+    )''')
+
+    c.execute('''CREATE TABLE IF NOT EXISTS projects (
+        project_id TEXT PRIMARY KEY,
+        type TEXT,
+        test_type TEXT,
+        run_mode TEXT,
+        target_val TEXT,
+        created_at TIMESTAMP,
+        tanks TEXT,
+        layout TEXT,
+        hardware_list TEXT,
+        hardware_dfs TEXT,
+        hardware_ds TEXT,
+        step6_watchdogs TEXT,
+        step6_limits TEXT,
+        step6_event_log TEXT,
+        watchdog_sync_ts TEXT,
+        step6_extra_limits TEXT,
+        step6_dashboard_tracker TEXT,
+        step5_var_mapping TEXT,
+        step5_formulas TEXT,
+        tank_start_dates TEXT
+    )''')
+
+    c.execute('''CREATE TABLE IF NOT EXISTS project_records (
+        id BIGSERIAL PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        record_phase TEXT NOT NULL,
+        record_ts TEXT NOT NULL,
+        method TEXT,
+        ambient_temp REAL,
+        tank_temps_json TEXT,
+        status_grid_json TEXT,
+        pump_readings_json TEXT,
+        alarms_json TEXT,
+        ack_alarm INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        active_tanks TEXT DEFAULT 'ALL'
+    )''')
+
+    c.execute('''CREATE TABLE IF NOT EXISTS maintenance_events (
+        id BIGSERIAL PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        event_ts TEXT NOT NULL,
+        affected_pumps_json TEXT NOT NULL,
+        event_type TEXT,
+        severity TEXT,
+        maintenance_status TEXT,
+        action_taken TEXT,
+        notes TEXT,
+        source_record_id INTEGER,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )''')
+
+    conn.commit()
+    conn.close()
+
 
 def init_db(db_file):
     conn = sqlite3.connect(db_file)
@@ -207,7 +291,7 @@ def handle_open_project(
     restore_project_hardware_state,
     restore_project_formula_state,
 ):
-    conn = sqlite3.connect(db_file)
+    conn = connect(db_file)
     proj_row = conn.execute(
         "SELECT project_id, type, test_type, run_mode, target_val, tanks, "
         "step6_watchdogs, step6_limits, step6_event_log, watchdog_sync_ts, "
@@ -227,18 +311,9 @@ def handle_open_project(
 
         try:
             query = "SELECT * FROM pumps WHERE project_id = ?"
-            st.session_state.active_pumps_df = pd.read_sql_query(query, conn, params=(project_id,))
+            st.session_state.active_pumps_df = read_sql(conn, query, params=(project_id,))
         except Exception:
             st.session_state.active_pumps_df = pd.DataFrame()
-
-        try:
-            st.session_state.layout_df = (
-                pd.read_json(proj_row[11])
-                if len(proj_row) > 11 and proj_row[11]
-                else pd.DataFrame()
-            )
-        except Exception:
-            st.session_state.layout_df = pd.DataFrame()
 
         try:
             st.session_state.watchdogs_df = (
@@ -290,7 +365,7 @@ def handle_open_project(
 
 
 def handle_modify_project(db_file, project_id, restore_project_formula_state):
-    conn = sqlite3.connect(db_file)
+    conn = connect(db_file)
     proj_row = conn.execute(
         "SELECT project_id, type, test_type, run_mode, target_val, tanks, "
         "layout, hardware_list, hardware_dfs, hardware_ds, step6_watchdogs, "
@@ -356,7 +431,7 @@ def handle_modify_project(db_file, project_id, restore_project_formula_state):
 
         try:
             query = "SELECT * FROM pumps WHERE project_id = ?"
-            pumps_df = pd.read_sql_query(query, conn, params=(project_id,))
+            pumps_df = read_sql(conn, query, params=(project_id,))
             if not pumps_df.empty:
                 keep_cols = [
                     "Pump Model",

@@ -3,6 +3,8 @@ import sqlite3
 
 import streamlit as st
 
+from pump_architect.db.connection import connect, _is_postgres
+
 
 def save_project_record(
     db_file,
@@ -12,7 +14,7 @@ def save_project_record(
     alarm_ack,
     active_tanks=None,
 ):
-    conn = sqlite3.connect(db_file)
+    conn = connect(db_file)
     c = conn.cursor()
     if draft["record_phase"] == "Baseline Calibration (Cold State)":
         c.execute(
@@ -21,29 +23,44 @@ def save_project_record(
         )
 
     active_tanks_str = "||".join(active_tanks) if active_tanks else "ALL"
-    c.execute(
-        """
-        INSERT INTO project_records (
-            project_id, record_phase, record_ts, method, ambient_temp,
-            tank_temps_json, status_grid_json, pump_readings_json, alarms_json,
-            ack_alarm, active_tanks
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            project_id,
-            draft["record_phase"],
-            draft["record_ts"],
-            draft.get("method", "Manual Input"),
-            float(draft.get("ambient_temp", 0.0) or 0.0),
-            json.dumps(draft.get("tank_temps", {})),
-            json.dumps(draft.get("status_grid", {})),
-            json.dumps(draft.get("pump_readings", {})),
-            json.dumps(all_alarms),
-            1 if all_alarms and alarm_ack else 0,
-            active_tanks_str,
-        ),
+    insert_params = (
+        project_id,
+        draft["record_phase"],
+        draft["record_ts"],
+        draft.get("method", "Manual Input"),
+        float(draft.get("ambient_temp", 0.0) or 0.0),
+        json.dumps(draft.get("tank_temps", {})),
+        json.dumps(draft.get("status_grid", {})),
+        json.dumps(draft.get("pump_readings", {})),
+        json.dumps(all_alarms),
+        1 if all_alarms and alarm_ack else 0,
+        active_tanks_str,
     )
-    saved_record_id = c.lastrowid
+    if _is_postgres(conn):
+        c.execute_returning(
+            """
+            INSERT INTO project_records (
+                project_id, record_phase, record_ts, method, ambient_temp,
+                tank_temps_json, status_grid_json, pump_readings_json, alarms_json,
+                ack_alarm, active_tanks
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            RETURNING id
+            """,
+            insert_params,
+        )
+        saved_record_id = c.lastrowid
+    else:
+        c.execute(
+            """
+            INSERT INTO project_records (
+                project_id, record_phase, record_ts, method, ambient_temp,
+                tank_temps_json, status_grid_json, pump_readings_json, alarms_json,
+                ack_alarm, active_tanks
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            insert_params,
+        )
+        saved_record_id = c.lastrowid
     conn.commit()
     conn.close()
     return saved_record_id

@@ -1,6 +1,6 @@
 import datetime
 import json
-import sqlite3
+from pump_architect.db.connection import get_connection
 
 import pandas as pd
 import streamlit as st
@@ -32,7 +32,7 @@ def render_add_maintenance_wizard(
         st.rerun()
 
     if "active_pumps_df" not in st.session_state or st.session_state.active_pumps_df.empty:
-        conn = sqlite3.connect(db_file)
+        conn = get_connection()
         st.session_state.active_pumps_df = pd.read_sql_query("SELECT * FROM pumps WHERE project_id = ?", conn, params=(project_id,))
         conn.close()
 
@@ -95,7 +95,7 @@ def render_add_maintenance_wizard(
 
     if st.button("Save Maintenance Event", use_container_width=True, type="primary", disabled=not can_save):
         try:
-            conn = sqlite3.connect(db_file)
+            conn = get_connection()
             conn.execute(
                 """
                 INSERT INTO maintenance_events (

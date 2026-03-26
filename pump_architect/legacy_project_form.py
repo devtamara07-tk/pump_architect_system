@@ -1,6 +1,6 @@
 import datetime
 import json
-import sqlite3
+from pump_architect.db.connection import get_connection
 
 import pandas as pd
 import streamlit as st
@@ -306,7 +306,7 @@ def render_project_form(db_file):
 
         # --- FORCE REHYDRATE HARDWARE STATE IF RESTORING ---
         if st.session_state.get("_restoring_project", False):
-            conn = sqlite3.connect(db_file)
+            conn = get_connection()
             proj_row = conn.execute("SELECT hardware_list, hardware_dfs, hardware_ds FROM projects WHERE project_id = ?", (st.session_state.get("current_project", ""),)).fetchone()
             conn.close()
             if proj_row:
@@ -1057,7 +1057,7 @@ def render_project_form(db_file):
             # --- THE DATE (TIMESTAMP) ---
             timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-            conn = sqlite3.connect(db_file)
+            conn = get_connection()
             c = conn.cursor()
 
             try:

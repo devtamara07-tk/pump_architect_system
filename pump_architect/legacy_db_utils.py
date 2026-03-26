@@ -1,11 +1,11 @@
 import json
-import sqlite3
+from pump_architect.db.connection import get_connection
 
 import pandas as pd
 
 
 def get_project_records(db_file, project_id):
-    conn = sqlite3.connect(db_file)
+    conn = get_connection()
     rows = conn.execute(
         """
         SELECT id, project_id, record_phase, record_ts, method, ambient_temp,
@@ -47,7 +47,7 @@ def get_latest_record(db_file, project_id):
 
 
 def has_baseline_record(db_file, project_id):
-    conn = sqlite3.connect(db_file)
+    conn = get_connection()
     row = conn.execute(
         "SELECT COUNT(*) FROM project_records WHERE project_id = ? AND record_phase = ?",
         (project_id, "Baseline Calibration (Cold State)"),
@@ -57,7 +57,7 @@ def has_baseline_record(db_file, project_id):
 
 
 def clear_project_records(db_file, project_id):
-    conn = sqlite3.connect(db_file)
+    conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("DELETE FROM project_records WHERE project_id = ?", (project_id,))
     deleted_rows = cursor.rowcount if cursor.rowcount is not None else 0
@@ -81,7 +81,7 @@ def clear_project_records(db_file, project_id):
 
 
 def clear_project_maintenance_events(db_file, project_id):
-    conn = sqlite3.connect(db_file)
+    conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("DELETE FROM maintenance_events WHERE project_id = ?", (project_id,))
     deleted_rows = cursor.rowcount if cursor.rowcount is not None else 0
@@ -91,7 +91,7 @@ def clear_project_maintenance_events(db_file, project_id):
 
 
 def get_maintenance_events(db_file, project_id):
-    conn = sqlite3.connect(db_file)
+    conn = get_connection()
     rows = conn.execute(
         """
          SELECT id, project_id, event_ts, affected_pumps_json, event_type, severity,
@@ -119,7 +119,7 @@ def get_tank_start_dates(db_file, project_id):
     tank_start_dates, auto-activate all tanks using the project created_at so
     the wizard doesn't block existing single-tank projects.
     """
-    conn = sqlite3.connect(db_file)
+    conn = get_connection()
     row = conn.execute(
         "SELECT tanks, tank_start_dates, created_at FROM projects WHERE project_id = ?",
         (project_id,),
@@ -158,7 +158,7 @@ def get_tank_start_dates(db_file, project_id):
 
 def save_tank_start_dates(db_file, project_id, tank_start_dates_dict):
     """Persist the full {tank_name: ts_str} dict to projects.tank_start_dates."""
-    conn = sqlite3.connect(db_file)
+    conn = get_connection()
     conn.execute(
         "UPDATE projects SET tank_start_dates = ? WHERE project_id = ?",
         (json.dumps(tank_start_dates_dict), project_id),
@@ -172,7 +172,7 @@ def get_latest_record_for_tank(db_file, project_id, tank_name):
 
     Existing records without the active_tanks column are treated as 'ALL'.
     """
-    conn = sqlite3.connect(db_file)
+    conn = get_connection()
     rows = conn.execute(
         """
         SELECT id, project_id, record_phase, record_ts, method, ambient_temp,
@@ -206,7 +206,7 @@ def get_latest_record_for_tank(db_file, project_id, tank_name):
 
 def has_baseline_record_for_tank(db_file, project_id, tank_name):
     """True if at least one baseline record covers tank_name."""
-    conn = sqlite3.connect(db_file)
+    conn = get_connection()
     rows = conn.execute(
         """
         SELECT COALESCE(active_tanks, 'ALL')

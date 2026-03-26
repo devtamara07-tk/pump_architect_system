@@ -1,4 +1,4 @@
-
+import os
 import streamlit as st
 from pump_architect.legacy_formula_utils import (
     parse_ts,
@@ -13,11 +13,27 @@ from pump_architect import legacy_pages
 from pump_architect import legacy_project_state
 
 # --- 1. INITIALIZATION & DATABASE ---
+
 DB_FILE = "architect_system.db"
 
-st.set_page_config(page_title="Pump Architect", layout="wide")
+def get_database_url():
+    # 1) Prefer environment variable (Codespaces, local terminal, etc.)
+    url = os.getenv("DATABASE_URL")
+    if url:
+        return url
+
+    # 2) Fall back to Streamlit secrets (Streamlit Community Cloud)
+    try:
+        return st.secrets["DATABASE_URL"]
+    except Exception:
+        return None
+
+DATABASE_URL = get_database_url()
+USE_POSTGRES = DATABASE_URL is not None
 
 def init_db():
+    if USE_POSTGRES:
+        return legacy_project_state.init_db_postgres(DATABASE_URL)  # example name
     return legacy_project_state.init_db(DB_FILE)
 
 if "page" not in st.session_state: st.session_state.page = "home"

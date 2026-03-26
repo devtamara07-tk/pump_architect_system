@@ -1,4 +1,4 @@
-import sqlite3
+from pump_architect.db.connection import get_connection
 
 import pandas as pd
 import streamlit as st
@@ -34,7 +34,7 @@ def initialize_add_record_draft():
 
 def ensure_active_pumps_df(db_file, project_id):
     if "active_pumps_df" not in st.session_state or st.session_state.active_pumps_df.empty:
-        conn = sqlite3.connect(db_file)
+        conn = get_connection()
         st.session_state.active_pumps_df = pd.read_sql_query("SELECT * FROM pumps WHERE project_id = ?", conn, params=(project_id,))
         conn.close()
     return st.session_state.get("active_pumps_df", pd.DataFrame())
@@ -63,7 +63,7 @@ def build_pump_ids(pumps_df):
 
 def load_layout_and_pump_tank_lookup(db_file, project_id):
     if "layout_df" not in st.session_state or st.session_state.layout_df.empty:
-        conn = sqlite3.connect(db_file)
+        conn = get_connection()
         row = conn.execute("SELECT layout, tanks FROM projects WHERE project_id = ?", (project_id,)).fetchone()
         conn.close()
         if row and row[0]:

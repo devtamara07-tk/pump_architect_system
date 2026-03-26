@@ -1,5 +1,5 @@
 import json
-import sqlite3
+from pump_architect.db.connection import get_connection
 
 import pandas as pd
 import streamlit as st
@@ -68,7 +68,7 @@ def restore_project_formula_state(db_file, project_id):
     default_var_mapping = pd.DataFrame(columns=["Variable", "Mapped Sensor"])
     default_formulas = pd.DataFrame(columns=["Formula Name", "Target", "Equation"])
 
-    conn = sqlite3.connect(db_file)
+    conn = get_connection()
     proj_row = conn.execute(
         "SELECT step5_var_mapping, step5_formulas FROM projects WHERE project_id = ?",
         (project_id,),
@@ -92,7 +92,7 @@ def restore_project_formula_state(db_file, project_id):
 
 
 def restore_project_hardware_state(db_file, project_id):
-    conn = sqlite3.connect(db_file)
+    conn = get_connection()
     proj_row = conn.execute(
         "SELECT hardware_list, hardware_dfs, hardware_ds FROM projects WHERE project_id = ?",
         (project_id,),

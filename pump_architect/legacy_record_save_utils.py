@@ -1,5 +1,5 @@
 import json
-import sqlite3
+from pump_architect.db.connection import get_connection
 
 import streamlit as st
 
@@ -12,7 +12,7 @@ def save_project_record(
     alarm_ack,
     active_tanks=None,
 ):
-    conn = sqlite3.connect(db_file)
+    conn = get_connection()
     c = conn.cursor()
     if draft["record_phase"] == "Baseline Calibration (Cold State)":
         c.execute(

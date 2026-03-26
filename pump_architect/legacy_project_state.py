@@ -110,7 +110,32 @@ def init_db_postgres(database_url):
     import psycopg2
     try:
         conn = psycopg2.connect(database_url)
-        # TODO: Implement schema creation and migration logic for Postgres
+        c = conn.cursor()
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS projects (
+                project_id TEXT PRIMARY KEY,
+                type TEXT,
+                test_type TEXT,
+                created_at TIMESTAMP,
+                tanks TEXT,
+                layout TEXT,
+                hardware_list TEXT,
+                hardware_dfs TEXT,
+                hardware_ds TEXT,
+                step6_watchdogs TEXT,
+                step6_limits TEXT,
+                step6_event_log TEXT,
+                watchdog_sync_ts TEXT,
+                step6_extra_limits TEXT,
+                step6_dashboard_tracker TEXT,
+                step5_var_mapping TEXT,
+                step5_formulas TEXT,
+                run_mode TEXT,
+                target_val TEXT,
+                tank_start_dates TEXT
+            )
+        ''')
+        conn.commit()
         conn.close()
     except Exception as e:
         print(f"[Postgres stub] Could not connect to Postgres: {e}")

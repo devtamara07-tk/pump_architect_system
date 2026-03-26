@@ -58,23 +58,9 @@ def init_db(db_file):
         )''')
 
         legacy_cols = [
-def init_db_postgres(database_url):
-    """
-    Stub for initializing Postgres database. This prevents crashes when USE_POSTGRES=True.
-    Implement full Postgres logic here in the future.
-    """
-    import psycopg2
-    try:
-        conn = psycopg2.connect(database_url)
-        # TODO: Implement schema creation and migration logic for Postgres
-        conn.close()
-    except Exception as e:
-        print(f"[Postgres stub] Could not connect to Postgres: {e}")
-    return None
             row[1]
             for row in c.execute("PRAGMA table_info(pumps_legacy_backup)").fetchall()
         ]
-
         def _pick(*candidates):
             for name in candidates:
                 if name in legacy_cols:
@@ -116,6 +102,20 @@ def init_db_postgres(database_url):
                 insulation=_pick("Insulation", "insulation"),
             )
         )
+def init_db_postgres(database_url):
+    """
+    Stub for initializing Postgres database. This prevents crashes when USE_POSTGRES=True.
+    Implement full Postgres logic here in the future.
+    """
+    import psycopg2
+    try:
+        conn = psycopg2.connect(database_url)
+        # TODO: Implement schema creation and migration logic for Postgres
+        conn.close()
+    except Exception as e:
+        print(f"[Postgres stub] Could not connect to Postgres: {e}")
+    return None
+
 
     c.execute('''CREATE TABLE IF NOT EXISTS projects (
         project_id TEXT PRIMARY KEY, type TEXT, test_type TEXT,

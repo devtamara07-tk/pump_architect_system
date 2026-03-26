@@ -108,9 +108,11 @@ def init_db_postgres(database_url):
     Implement full Postgres logic here in the future.
     """
     import psycopg2
+    print("[DEBUG] Running init_db_postgres for schema creation.")
     try:
         conn = psycopg2.connect(database_url)
         c = conn.cursor()
+        print("[DEBUG] Connected to Postgres, creating tables if not exist...")
         # Create projects table
         c.execute('''
             CREATE TABLE IF NOT EXISTS projects (

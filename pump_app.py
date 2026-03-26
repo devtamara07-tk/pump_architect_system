@@ -33,7 +33,9 @@ USE_POSTGRES = DATABASE_URL is not None
 
 def init_db():
     if USE_POSTGRES:
-        return legacy_project_state.init_db_postgres(DATABASE_URL)  # example name
+        print("[DEBUG] Using Postgres (Neon). DATABASE_URL:", DATABASE_URL)
+        return legacy_project_state.init_db_postgres(DATABASE_URL)
+    print("[DEBUG] Using SQLite. DB_FILE:", DB_FILE)
     return legacy_project_state.init_db(DB_FILE)
 
 if "page" not in st.session_state: st.session_state.page = "home"

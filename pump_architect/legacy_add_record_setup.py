@@ -64,7 +64,10 @@ def build_pump_ids(pumps_df):
 def load_layout_and_pump_tank_lookup(db_file, project_id):
     if "layout_df" not in st.session_state or st.session_state.layout_df.empty:
         conn = get_connection()
-        row = conn.execute("SELECT layout, tanks FROM projects WHERE project_id = ?", (project_id,)).fetchone()
+        cur = conn.cursor()
+        cur.execute("SELECT layout, tanks FROM projects WHERE project_id = ?", (project_id,))
+        row = cur.fetchone()
+        cur.close()
         conn.close()
         if row and row[0]:
             try:

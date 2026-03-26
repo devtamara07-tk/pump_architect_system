@@ -159,11 +159,13 @@ def render_confirmation_banner():
 def persist_event_log_for_project(db_file, project_id):
     try:
         conn = get_connection()
-        conn.execute(
+        cur = conn.cursor()
+        cur.execute(
             "UPDATE projects SET step6_event_log = ? WHERE project_id = ?",
             (json.dumps(st.session_state.get("event_log", [])), project_id),
         )
         conn.commit()
+        cur.close()
         conn.close()
     except Exception:
         pass
@@ -198,9 +200,11 @@ def add_event_log_entry(text):
         return []
 
     conn = get_connection()
+    cur = conn.cursor()
     for event_id in to_close_ids:
-        conn.execute("UPDATE maintenance_events SET maintenance_status = ? WHERE id = ?", ("Closed", event_id))
+        cur.execute("UPDATE maintenance_events SET maintenance_status = ? WHERE id = ?", ("Closed", event_id))
     conn.commit()
+    cur.close()
     conn.close()
     return to_close_ids
 

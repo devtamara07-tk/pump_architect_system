@@ -140,17 +140,20 @@ def get_tank_start_dates(db_file, project_id):
 
     # Migration: if this project already has records but no start dates, auto-fill
     if not any(result.values()):
-        has_records = conn.execute(
+        cur = conn.cursor()
+        cur.execute(
             "SELECT COUNT(*) FROM project_records WHERE project_id = ?", (project_id,)
-        ).fetchone()[0]
+        )
+        has_records = cur.fetchone()[0]
         if has_records > 0:
             fallback_ts = created_at or "2025-01-01 08:00:00"
             result = {t: fallback_ts for t in tanks}
-            conn.execute(
+            cur.execute(
                 "UPDATE projects SET tank_start_dates = ? WHERE project_id = ?",
                 (json.dumps(result), project_id),
             )
             conn.commit()
+        cur.close()
 
     conn.close()
     return result

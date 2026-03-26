@@ -45,6 +45,7 @@ def save_project_record(
     )
     saved_record_id = c.lastrowid
     conn.commit()
+    cur.close()
     conn.close()
     return saved_record_id
 

@@ -79,7 +79,10 @@ def render_dashboard_page(
     project_name = st.session_state.get('current_project', 'UNKNOWN PROJECT')
 
     conn = get_connection()
-    proj_row = conn.execute("SELECT run_mode, target_val, test_type FROM projects WHERE project_id = ?", (project_name,)).fetchone()
+    cur = conn.cursor()
+    cur.execute("SELECT run_mode, target_val, test_type FROM projects WHERE project_id = ?", (project_name,))
+    proj_row = cur.fetchone()
+    cur.close()
     conn.close()
 
     # Extract data or default if missing

@@ -37,7 +37,8 @@ def init_db(db_file):
         "Hertz",
         "Insulation",
     ]
-    pump_info = c.execute("PRAGMA table_info(pumps)").fetchall()
+    c.execute("PRAGMA table_info(pumps)")
+    pump_info = c.fetchall()
     existing_pump_cols = [row[1] for row in pump_info]
     if any(col not in existing_pump_cols for col in required_pumps_cols):
         c.execute("DROP TABLE IF EXISTS pumps_legacy_backup")
@@ -57,10 +58,8 @@ def init_db(db_file):
             Insulation TEXT
         )''')
 
-        legacy_cols = [
-            row[1]
-            for row in c.execute("PRAGMA table_info(pumps_legacy_backup)").fetchall()
-        ]
+        c.execute("PRAGMA table_info(pumps_legacy_backup)")
+        legacy_cols = [row[1] for row in c.fetchall()]
         def _pick(*candidates):
             for name in candidates:
                 if name in legacy_cols:
@@ -299,14 +298,17 @@ def handle_open_project(
     restore_project_formula_state,
 ):
     conn = get_connection()
-    proj_row = conn.execute(
+    cur = conn.cursor()
+    cur.execute(
         "SELECT project_id, type, test_type, run_mode, target_val, tanks, "
         "step6_watchdogs, step6_limits, step6_event_log, watchdog_sync_ts, "
         "step6_extra_limits, layout, step6_dashboard_tracker, "
         "step5_var_mapping, step5_formulas "
         "FROM projects WHERE project_id = ?",
         (project_id,),
-    ).fetchone()
+    )
+    proj_row = cur.fetchone()
+    cur.close()
 
     if proj_row:
         st.session_state.current_project = project_id
@@ -382,14 +384,17 @@ def handle_open_project(
 
 def handle_modify_project(db_file, project_id, restore_project_formula_state):
     conn = get_connection()
-    proj_row = conn.execute(
+    cur = conn.cursor()
+    cur.execute(
         "SELECT project_id, type, test_type, run_mode, target_val, tanks, "
         "layout, hardware_list, hardware_dfs, hardware_ds, step6_watchdogs, "
         "step6_limits, step6_event_log, watchdog_sync_ts, step6_extra_limits, "
         "step6_dashboard_tracker, step5_var_mapping, step5_formulas "
         "FROM projects WHERE project_id = ?",
         (project_id,),
-    ).fetchone()
+    )
+    proj_row = cur.fetchone()
+    cur.close()
 
     if proj_row:
         for k in ["specs_df", "layout_df"]:

@@ -69,10 +69,13 @@ def restore_project_formula_state(db_file, project_id):
     default_formulas = pd.DataFrame(columns=["Formula Name", "Target", "Equation"])
 
     conn = get_connection()
-    proj_row = conn.execute(
-        "SELECT step5_var_mapping, step5_formulas FROM projects WHERE project_id = ?",
-        (project_id,),
-    ).fetchone()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT step5_var_mapping, step5_formulas FROM projects WHERE project_id = ?",
+            (project_id,)
+        )
+        proj_row = cur.fetchone()
+        cur.close()
     conn.close()
 
     if not proj_row:
@@ -93,10 +96,13 @@ def restore_project_formula_state(db_file, project_id):
 
 def restore_project_hardware_state(db_file, project_id):
     conn = get_connection()
-    proj_row = conn.execute(
-        "SELECT hardware_list, hardware_dfs, hardware_ds FROM projects WHERE project_id = ?",
-        (project_id,),
-    ).fetchone()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT hardware_list, hardware_dfs, hardware_ds FROM projects WHERE project_id = ?",
+            (project_id,)
+        )
+        proj_row = cur.fetchone()
+        cur.close()
     conn.close()
 
     if not proj_row:

@@ -89,7 +89,9 @@ def render_home_page(db_file, handle_open_project, handle_modify_project):
         col.markdown(f"<div class='col-header'>{txt}</div>", unsafe_allow_html=True)
 
     conn = get_connection()
-    projs = conn.execute("SELECT project_id, type, test_type, created_at FROM projects ORDER BY created_at DESC").fetchall()
+    cur = conn.cursor()
+    cur.execute("SELECT project_id, type, test_type, created_at FROM projects ORDER BY created_at DESC")
+    projs = cur.fetchall()
 
     for idx, p in enumerate(projs):
         c = st.columns([0.4, 1.2, 2.5, 1.3, 1.2, 1.2, 1.2])
@@ -115,15 +117,15 @@ def render_home_page(db_file, handle_open_project, handle_modify_project):
 
             if c[6].button("DANGER Confirm Delete Project", key=f"conf_{idx}", use_container_width=True, type="primary"):
                 conn = get_connection()
-                conn.execute("DELETE FROM projects WHERE project_id=?", (p[0],))
+                cur.execute("DELETE FROM projects WHERE project_id=?", (p[0],))
 
                 try:
-                    conn.execute("DELETE FROM pumps WHERE project_name=?", (p[0],))
+                    cur.execute("DELETE FROM pumps WHERE project_name=?", (p[0],))
                 except Exception:
-                    cursor = conn.execute("PRAGMA table_info(pumps)")
-                    cols = [info[1] for info in cursor.fetchall()]
+                    cur.execute("PRAGMA table_info(pumps)")
+                    cols = [info[1] for info in cur.fetchall()]
                     actual_col = cols[1]
-                    conn.execute(f"DELETE FROM pumps WHERE {actual_col}=?", (p[0],))
+                    cur.execute(f"DELETE FROM pumps WHERE {actual_col}=?", (p[0],))
 
                 conn.commit()
                 conn.close()

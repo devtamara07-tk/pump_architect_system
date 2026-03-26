@@ -33,7 +33,9 @@ def render_add_maintenance_wizard(
 
     if "active_pumps_df" not in st.session_state or st.session_state.active_pumps_df.empty:
         conn = get_connection()
+        cur = conn.cursor()
         st.session_state.active_pumps_df = pd.read_sql_query("SELECT * FROM pumps WHERE project_id = ?", conn, params=(project_id,))
+        cur.close()
         conn.close()
 
     pumps_df = st.session_state.get("active_pumps_df", pd.DataFrame())
@@ -96,7 +98,8 @@ def render_add_maintenance_wizard(
     if st.button("Save Maintenance Event", use_container_width=True, type="primary", disabled=not can_save):
         try:
             conn = get_connection()
-            conn.execute(
+            cur = conn.cursor()
+            cur.execute(
                 """
                 INSERT INTO maintenance_events (
                     project_id, event_ts, affected_pumps_json, event_type, severity,
@@ -116,6 +119,7 @@ def render_add_maintenance_wizard(
                 ),
             )
             conn.commit()
+            cur.close()
             conn.close()
 
             add_event_log_entry_fn(f"Maintenance logged ({event_type}, {severity}) for pump(s): {', '.join(affected_pumps)}.")
@@ -179,8 +183,10 @@ def render_add_maintenance_wizard(
                         break
                 if selected_id is not None:
                     conn = get_connection()
-                    conn.execute("UPDATE maintenance_events SET maintenance_status = ? WHERE id = ?", (new_status, selected_id))
+                    cur = conn.cursor()
+                    cur.execute("UPDATE maintenance_events SET maintenance_status = ? WHERE id = ?", (new_status, selected_id))
                     conn.commit()
+                    cur.close()
                     conn.close()
                     add_event_log_entry_fn(f"Maintenance event #{selected_id} status updated to {new_status}.")
                     persist_event_log_for_project_fn(project_id)

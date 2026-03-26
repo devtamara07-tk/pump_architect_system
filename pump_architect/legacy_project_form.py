@@ -307,40 +307,46 @@ def render_project_form(db_file):
         # --- FORCE REHYDRATE HARDWARE STATE IF RESTORING ---
         if st.session_state.get("_restoring_project", False):
             conn = get_connection()
-            proj_row = conn.execute("SELECT hardware_list, hardware_dfs, hardware_ds FROM projects WHERE project_id = ?", (st.session_state.get("current_project", ""),)).fetchone()
+            cur = conn.cursor()
+            cur.execute("SELECT hardware_list, hardware_dfs, hardware_ds FROM projects WHERE project_id = ?", (st.session_state.get("current_project", ""),))
+            proj_row = cur.fetchone()
+            cur.close()
             conn.close()
-            if proj_row:
-                # hardware_list
                 try:
-                    st.session_state.hardware_list = json.loads(proj_row[0]) if proj_row[0] else []
-                except Exception:
-                    st.session_state.hardware_list = []
-                # hardware_dfs
-                try:
-                    dfs = json.loads(proj_row[1]) if proj_row[1] else {}
-                    for k, v in dfs.items():
-                        st.session_state[k] = pd.read_json(v)
+                    cur = conn.cursor()
+                    cur.execute("ALTER TABLE projects ADD COLUMN watchdog_sync_ts TEXT")
                 except Exception:
                     pass
-                # hardware_ds
-                try:
-                    dss = json.loads(proj_row[2]) if proj_row[2] else {}
-                    for k, v in dss.items():
-                        st.session_state[k] = v
-                except Exception:
-                    pass
-            st.session_state._restoring_project = False
 
-        # 1. Build the Master Assignment Lists
-        if "specs_df" in st.session_state and not st.session_state.specs_df.empty:
-            available_pumps = st.session_state.specs_df["Pump ID"].tolist()
-        else:
-            available_pumps = ["P-01"]  # Fallback
-        if "water_tanks" in st.session_state:
-            available_tanks = st.session_state.water_tanks
-        else:
-            available_tanks = ["Water Tank 1"]
-        assignment_options = ["None (Unused)", "Global (Ambient Room)"] + available_tanks + available_pumps
+                cur = conn.cursor()
+                cur.execute("INSERT OR REPLACE INTO projects (project_id, type, test_type, run_mode, target_val, created_at, tanks, layout, hardware_list, hardware_dfs, hardware_ds, step6_watchdogs, step6_limits, step6_event_log, watchdog_sync_ts, step6_extra_limits, step6_dashboard_tracker, step5_var_mapping, step5_formulas) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (project_name, proj_type, test_type, run_mode, target_val, timestamp, tanks_str, layout_json, hardware_list_json, hardware_dfs_json, hardware_ds_json, step6_watchdogs_json, step6_limits_json, step6_event_log_json, watchdog_sync_ts, step6_extra_limits_json, step6_dashboard_tracker, step5_var_mapping_json, step5_formulas_json))
+
+                # --- Delete old pump records for this project to prevent duplicates ---
+                cur.execute("DELETE FROM pumps WHERE project_id = ?", (project_name,))
+
+                # Save Pumps Specs (Insulation only, no tank assignment, columns must match schema)
+                for _, row in st.session_state.specs_df.dropna(subset=["Pump ID"]).iterrows():
+                    p_id = row["Pump ID"]
+                    cur.execute("INSERT OR REPLACE INTO pumps (pump_id, project_id, `Pump Model`, `ISO No.`, HP, kW, `Voltage (V)`, `Amp Min`, `Amp Max`, Phase, Hertz, Insulation) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        (
+                            p_id,
+                            project_name,
+                            row.get("Pump Model", ""),
+                            row.get("ISO No.", ""),
+                            str(row.get("HP", "")),
+                            str(row.get("kW", "")),
+                            row.get("Voltage (V)", ""),
+                            str(row.get("Amp Min", "")),
+                            str(row.get("Amp Max", "")),
+                            str(row.get("Phase", "")),
+                            str(row.get("Hertz", "")),
+                            row.get("Insulation", ""),
+                        ))
+
+                conn.commit()
+                cur.close()
+                conn.close()
 
         # 2. Hardware Inventory Initialization
         if "hardware_list" not in st.session_state:

@@ -96,13 +96,13 @@ def restore_project_formula_state(db_file, project_id):
 
 def restore_project_hardware_state(db_file, project_id):
     conn = get_connection()
-        cur = conn.cursor()
-        cur.execute(
-            "SELECT hardware_list, hardware_dfs, hardware_ds FROM projects WHERE project_id = ?",
-            (project_id,)
-        )
-        proj_row = cur.fetchone()
-        cur.close()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT hardware_list, hardware_dfs, hardware_ds FROM projects WHERE project_id = ?",
+        (project_id,)
+    )
+    proj_row = cur.fetchone()
+    cur.close()
     conn.close()
 
     if not proj_row:

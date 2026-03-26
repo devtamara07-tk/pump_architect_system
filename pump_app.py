@@ -30,6 +30,7 @@ def get_database_url():
 
 DATABASE_URL = get_database_url()
 USE_POSTGRES = DATABASE_URL is not None
+print("USE_POSTGRES:", USE_POSTGRES, "DATABASE_URL:", DATABASE_URL)  # <-- Add this line
 
 def init_db():
     if USE_POSTGRES:

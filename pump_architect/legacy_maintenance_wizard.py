@@ -5,6 +5,19 @@ import sqlite3
 import pandas as pd
 import streamlit as st
 
+from pump_architect.db.connection import (
+    adapt_sql as _adapt_sql,
+    get_database_url as _get_db_url,
+    get_connection as _get_pg_conn,
+)
+
+
+def _get_conn(db_file):
+    """Return the appropriate DB connection (Postgres or SQLite)."""
+    if _get_db_url():
+        return _get_pg_conn()
+    return sqlite3.connect(db_file)
+
 
 def render_add_maintenance_wizard(
     db_file,
@@ -32,8 +45,9 @@ def render_add_maintenance_wizard(
         st.rerun()
 
     if "active_pumps_df" not in st.session_state or st.session_state.active_pumps_df.empty:
-        conn = sqlite3.connect(db_file)
-        st.session_state.active_pumps_df = pd.read_sql_query("SELECT * FROM pumps WHERE project_id = ?", conn, params=(project_id,))
+        conn = _get_conn(db_file)
+        sql = _adapt_sql(conn, "SELECT * FROM pumps WHERE project_id = ?")
+        st.session_state.active_pumps_df = pd.read_sql_query(sql, conn, params=(project_id,))
         conn.close()
 
     pumps_df = st.session_state.get("active_pumps_df", pd.DataFrame())
@@ -95,14 +109,17 @@ def render_add_maintenance_wizard(
 
     if st.button("Save Maintenance Event", use_container_width=True, type="primary", disabled=not can_save):
         try:
-            conn = sqlite3.connect(db_file)
+            conn = _get_conn(db_file)
             conn.execute(
-                """
+                _adapt_sql(
+                    conn,
+                    """
                 INSERT INTO maintenance_events (
                     project_id, event_ts, affected_pumps_json, event_type, severity,
                     maintenance_status, action_taken, notes, source_record_id
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
+                ),
                 (
                     project_id,
                     event_ts,
@@ -178,10 +195,16 @@ def render_add_maintenance_wizard(
                         selected_id = eid
                         break
                 if selected_id is not None:
-                    conn = sqlite3.connect(db_file)
-                    conn.execute("UPDATE maintenance_events SET maintenance_status = ? WHERE id = ?", (new_status, selected_id))
-                    conn.commit()
-                    conn.close()
+                    upd_conn = _get_conn(db_file)
+                    upd_conn.execute(
+                        _adapt_sql(
+                            upd_conn,
+                            "UPDATE maintenance_events SET maintenance_status = ? WHERE id = ?",
+                        ),
+                        (new_status, selected_id),
+                    )
+                    upd_conn.commit()
+                    upd_conn.close()
                     add_event_log_entry_fn(f"Maintenance event #{selected_id} status updated to {new_status}.")
                     persist_event_log_for_project_fn(project_id)
                     queue_confirmation_fn("Maintenance status updated.")

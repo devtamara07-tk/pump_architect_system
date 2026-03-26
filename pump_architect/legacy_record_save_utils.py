@@ -3,6 +3,19 @@ import sqlite3
 
 import streamlit as st
 
+from pump_architect.db.connection import (
+    adapt_sql as _adapt_sql,
+    get_database_url as _get_db_url,
+    get_connection as _get_pg_conn,
+)
+
+
+def _get_conn(db_file):
+    """Return the appropriate DB connection (Postgres or SQLite)."""
+    if _get_db_url():
+        return _get_pg_conn()
+    return sqlite3.connect(db_file)
+
 
 def save_project_record(
     db_file,
@@ -12,23 +25,29 @@ def save_project_record(
     alarm_ack,
     active_tanks=None,
 ):
-    conn = sqlite3.connect(db_file)
+    conn = _get_conn(db_file)
     c = conn.cursor()
     if draft["record_phase"] == "Baseline Calibration (Cold State)":
         c.execute(
-            "DELETE FROM project_records WHERE project_id = ? AND record_phase = ?",
+            _adapt_sql(
+                conn,
+                "DELETE FROM project_records WHERE project_id = ? AND record_phase = ?",
+            ),
             (project_id, "Baseline Calibration (Cold State)"),
         )
 
     active_tanks_str = "||".join(active_tanks) if active_tanks else "ALL"
     c.execute(
-        """
+        _adapt_sql(
+            conn,
+            """
         INSERT INTO project_records (
             project_id, record_phase, record_ts, method, ambient_temp,
             tank_temps_json, status_grid_json, pump_readings_json, alarms_json,
             ack_alarm, active_tanks
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
+        ),
         (
             project_id,
             draft["record_phase"],

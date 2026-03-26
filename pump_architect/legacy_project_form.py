@@ -6,6 +6,19 @@ import pandas as pd
 import streamlit as st
 
 from pump_architect import legacy_ui_event_utils
+from pump_architect.db.connection import (
+    adapt_sql as _adapt_sql,
+    get_database_url as _get_db_url,
+    get_connection as _get_pg_conn,
+    is_postgres as _is_pg,
+)
+
+
+def _get_conn(db_file):
+    """Return the appropriate DB connection (Postgres or SQLite)."""
+    if _get_db_url():
+        return _get_pg_conn()
+    return sqlite3.connect(db_file)
 
 
 def render_project_form(db_file):
@@ -306,8 +319,11 @@ def render_project_form(db_file):
 
         # --- FORCE REHYDRATE HARDWARE STATE IF RESTORING ---
         if st.session_state.get("_restoring_project", False):
-            conn = sqlite3.connect(db_file)
-            proj_row = conn.execute("SELECT hardware_list, hardware_dfs, hardware_ds FROM projects WHERE project_id = ?", (st.session_state.get("current_project", ""),)).fetchone()
+            conn = _get_conn(db_file)
+            proj_row = conn.execute(
+                _adapt_sql(conn, "SELECT hardware_list, hardware_dfs, hardware_ds FROM projects WHERE project_id = ?"),
+                (st.session_state.get("current_project", ""),),
+            ).fetchone()
             conn.close()
             if proj_row:
                 # hardware_list

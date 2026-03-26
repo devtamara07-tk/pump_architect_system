@@ -3,10 +3,24 @@ import sqlite3
 
 import pandas as pd
 
+from pump_architect.db.connection import (
+    adapt_sql as _adapt_sql,
+    get_database_url as _get_db_url,
+    get_connection as _get_pg_conn,
+)
+
+
+def _get_conn(db_file):
+    """Return the appropriate DB connection (Postgres or SQLite)."""
+    if _get_db_url():
+        return _get_pg_conn()
+    return sqlite3.connect(db_file)
+
 
 def get_project_records(db_file, project_id):
-    conn = sqlite3.connect(db_file)
-    rows = conn.execute(
+    conn = _get_conn(db_file)
+    sql = _adapt_sql(
+        conn,
         """
         SELECT id, project_id, record_phase, record_ts, method, ambient_temp,
                tank_temps_json, status_grid_json, pump_readings_json, alarms_json,
@@ -15,8 +29,8 @@ def get_project_records(db_file, project_id):
         WHERE project_id = ?
         ORDER BY datetime(record_ts) DESC, id DESC
         """,
-        (project_id,),
-    ).fetchall()
+    )
+    rows = conn.execute(sql, (project_id,)).fetchall()
     conn.close()
     cols = [
         "id", "project_id", "record_phase", "record_ts", "method", "ambient_temp",
@@ -47,31 +61,35 @@ def get_latest_record(db_file, project_id):
 
 
 def has_baseline_record(db_file, project_id):
-    conn = sqlite3.connect(db_file)
-    row = conn.execute(
+    conn = _get_conn(db_file)
+    sql = _adapt_sql(
+        conn,
         "SELECT COUNT(*) FROM project_records WHERE project_id = ? AND record_phase = ?",
-        (project_id, "Baseline Calibration (Cold State)"),
-    ).fetchone()
+    )
+    row = conn.execute(sql, (project_id, "Baseline Calibration (Cold State)")).fetchone()
     conn.close()
     return bool(row and row[0] > 0)
 
 
 def clear_project_records(db_file, project_id):
-    conn = sqlite3.connect(db_file)
+    conn = _get_conn(db_file)
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM project_records WHERE project_id = ?", (project_id,))
+    cursor.execute(
+        _adapt_sql(conn, "DELETE FROM project_records WHERE project_id = ?"),
+        (project_id,),
+    )
     deleted_rows = cursor.rowcount if cursor.rowcount is not None else 0
 
     # Clearing all run-test records should also reset per-tank activation history.
     # Otherwise Phase 0 still shows tanks as active even though no baseline/data remains.
     project_row = cursor.execute(
-        "SELECT tanks FROM projects WHERE project_id = ?",
+        _adapt_sql(conn, "SELECT tanks FROM projects WHERE project_id = ?"),
         (project_id,),
     ).fetchone()
     tanks = project_row[0].split("||") if project_row and project_row[0] else ["Water Tank 1"]
     reset_start_dates = json.dumps({tank_name: None for tank_name in tanks})
     cursor.execute(
-        "UPDATE projects SET tank_start_dates = ? WHERE project_id = ?",
+        _adapt_sql(conn, "UPDATE projects SET tank_start_dates = ? WHERE project_id = ?"),
         (reset_start_dates, project_id),
     )
 
@@ -81,9 +99,12 @@ def clear_project_records(db_file, project_id):
 
 
 def clear_project_maintenance_events(db_file, project_id):
-    conn = sqlite3.connect(db_file)
+    conn = _get_conn(db_file)
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM maintenance_events WHERE project_id = ?", (project_id,))
+    cursor.execute(
+        _adapt_sql(conn, "DELETE FROM maintenance_events WHERE project_id = ?"),
+        (project_id,),
+    )
     deleted_rows = cursor.rowcount if cursor.rowcount is not None else 0
     conn.commit()
     conn.close()
@@ -91,8 +112,9 @@ def clear_project_maintenance_events(db_file, project_id):
 
 
 def get_maintenance_events(db_file, project_id):
-    conn = sqlite3.connect(db_file)
-    rows = conn.execute(
+    conn = _get_conn(db_file)
+    sql = _adapt_sql(
+        conn,
         """
          SELECT id, project_id, event_ts, affected_pumps_json, event_type, severity,
              maintenance_status, action_taken, notes, source_record_id, created_at
@@ -100,8 +122,8 @@ def get_maintenance_events(db_file, project_id):
         WHERE project_id = ?
         ORDER BY datetime(event_ts) DESC, id DESC
         """,
-        (project_id,),
-    ).fetchall()
+    )
+    rows = conn.execute(sql, (project_id,)).fetchall()
     conn.close()
     cols = [
         "id", "project_id", "event_ts", "affected_pumps_json", "event_type", "severity",
@@ -119,9 +141,9 @@ def get_tank_start_dates(db_file, project_id):
     tank_start_dates, auto-activate all tanks using the project created_at so
     the wizard doesn't block existing single-tank projects.
     """
-    conn = sqlite3.connect(db_file)
+    conn = _get_conn(db_file)
     row = conn.execute(
-        "SELECT tanks, tank_start_dates, created_at FROM projects WHERE project_id = ?",
+        _adapt_sql(conn, "SELECT tanks, tank_start_dates, created_at FROM projects WHERE project_id = ?"),
         (project_id,),
     ).fetchone()
     if not row:
@@ -141,13 +163,14 @@ def get_tank_start_dates(db_file, project_id):
     # Migration: if this project already has records but no start dates, auto-fill
     if not any(result.values()):
         has_records = conn.execute(
-            "SELECT COUNT(*) FROM project_records WHERE project_id = ?", (project_id,)
+            _adapt_sql(conn, "SELECT COUNT(*) FROM project_records WHERE project_id = ?"),
+            (project_id,),
         ).fetchone()[0]
         if has_records > 0:
             fallback_ts = created_at or "2025-01-01 08:00:00"
             result = {t: fallback_ts for t in tanks}
             conn.execute(
-                "UPDATE projects SET tank_start_dates = ? WHERE project_id = ?",
+                _adapt_sql(conn, "UPDATE projects SET tank_start_dates = ? WHERE project_id = ?"),
                 (json.dumps(result), project_id),
             )
             conn.commit()
@@ -158,9 +181,9 @@ def get_tank_start_dates(db_file, project_id):
 
 def save_tank_start_dates(db_file, project_id, tank_start_dates_dict):
     """Persist the full {tank_name: ts_str} dict to projects.tank_start_dates."""
-    conn = sqlite3.connect(db_file)
+    conn = _get_conn(db_file)
     conn.execute(
-        "UPDATE projects SET tank_start_dates = ? WHERE project_id = ?",
+        _adapt_sql(conn, "UPDATE projects SET tank_start_dates = ? WHERE project_id = ?"),
         (json.dumps(tank_start_dates_dict), project_id),
     )
     conn.commit()
@@ -172,8 +195,9 @@ def get_latest_record_for_tank(db_file, project_id, tank_name):
 
     Existing records without the active_tanks column are treated as 'ALL'.
     """
-    conn = sqlite3.connect(db_file)
-    rows = conn.execute(
+    conn = _get_conn(db_file)
+    sql = _adapt_sql(
+        conn,
         """
         SELECT id, project_id, record_phase, record_ts, method, ambient_temp,
                tank_temps_json, status_grid_json, pump_readings_json, alarms_json,
@@ -183,8 +207,8 @@ def get_latest_record_for_tank(db_file, project_id, tank_name):
         WHERE project_id = ?
         ORDER BY datetime(record_ts) DESC, id DESC
         """,
-        (project_id,),
-    ).fetchall()
+    )
+    rows = conn.execute(sql, (project_id,)).fetchall()
     conn.close()
 
     col_names = [
@@ -206,15 +230,16 @@ def get_latest_record_for_tank(db_file, project_id, tank_name):
 
 def has_baseline_record_for_tank(db_file, project_id, tank_name):
     """True if at least one baseline record covers tank_name."""
-    conn = sqlite3.connect(db_file)
-    rows = conn.execute(
+    conn = _get_conn(db_file)
+    sql = _adapt_sql(
+        conn,
         """
         SELECT COALESCE(active_tanks, 'ALL')
         FROM project_records
         WHERE project_id = ? AND record_phase = ?
         """,
-        (project_id, "Baseline Calibration (Cold State)"),
-    ).fetchall()
+    )
+    rows = conn.execute(sql, (project_id, "Baseline Calibration (Cold State)")).fetchall()
     conn.close()
     for (active_tanks,) in rows:
         if active_tanks == "ALL" or tank_name in active_tanks.split("||"):

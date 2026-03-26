@@ -5,6 +5,19 @@ import sqlite3
 import pandas as pd
 import streamlit as st
 
+from pump_architect.db.connection import (
+    adapt_sql as _adapt_sql,
+    get_database_url as _get_db_url,
+    get_connection as _get_pg_conn,
+)
+
+
+def _get_conn(db_file):
+    """Return the appropriate DB connection (Postgres or SQLite)."""
+    if _get_db_url():
+        return _get_pg_conn()
+    return sqlite3.connect(db_file)
+
 
 def inject_industrial_css():
     st.markdown("""
@@ -158,9 +171,9 @@ def render_confirmation_banner():
 
 def persist_event_log_for_project(db_file, project_id):
     try:
-        conn = sqlite3.connect(db_file)
+        conn = _get_conn(db_file)
         conn.execute(
-            "UPDATE projects SET step6_event_log = ? WHERE project_id = ?",
+            _adapt_sql(conn, "UPDATE projects SET step6_event_log = ? WHERE project_id = ?"),
             (json.dumps(st.session_state.get("event_log", [])), project_id),
         )
         conn.commit()
@@ -198,9 +211,12 @@ def auto_close_maintenance_for_stable_pumps(db_file, project_id, stable_pumps, g
     if not to_close_ids:
         return []
 
-    conn = sqlite3.connect(db_file)
+    conn = _get_conn(db_file)
     for event_id in to_close_ids:
-        conn.execute("UPDATE maintenance_events SET maintenance_status = ? WHERE id = ?", ("Closed", event_id))
+        conn.execute(
+            _adapt_sql(conn, "UPDATE maintenance_events SET maintenance_status = ? WHERE id = ?"),
+            ("Closed", event_id),
+        )
     conn.commit()
     conn.close()
     return to_close_ids

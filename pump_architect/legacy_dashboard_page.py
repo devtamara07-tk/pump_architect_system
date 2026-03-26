@@ -5,6 +5,19 @@ import sqlite3
 import pandas as pd
 import streamlit as st
 
+from pump_architect.db.connection import (
+    adapt_sql as _adapt_sql,
+    get_database_url as _get_db_url,
+    get_connection as _get_pg_conn,
+)
+
+
+def _get_conn(db_file):
+    """Return the appropriate DB connection (Postgres or SQLite)."""
+    if _get_db_url():
+        return _get_pg_conn()
+    return sqlite3.connect(db_file)
+
 
 def render_dashboard_page(
     db_file,
@@ -78,8 +91,11 @@ def render_dashboard_page(
     # 2. Fetch REAL Database Info for this Project
     project_name = st.session_state.get('current_project', 'UNKNOWN PROJECT')
 
-    conn = sqlite3.connect(db_file)
-    proj_row = conn.execute("SELECT run_mode, target_val, test_type FROM projects WHERE project_id = ?", (project_name,)).fetchone()
+    conn = _get_conn(db_file)
+    proj_row = conn.execute(
+        _adapt_sql(conn, "SELECT run_mode, target_val, test_type FROM projects WHERE project_id = ?"),
+        (project_name,),
+    ).fetchone()
     conn.close()
 
     # Extract data or default if missing

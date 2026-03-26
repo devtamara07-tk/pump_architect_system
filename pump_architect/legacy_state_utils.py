@@ -4,6 +4,19 @@ import sqlite3
 import pandas as pd
 import streamlit as st
 
+from pump_architect.db.connection import (
+    adapt_sql as _adapt_sql,
+    get_database_url as _get_db_url,
+    get_connection as _get_pg_conn,
+)
+
+
+def _get_conn(db_file):
+    """Return the appropriate DB connection (Postgres or SQLite)."""
+    if _get_db_url():
+        return _get_pg_conn()
+    return sqlite3.connect(db_file)
+
 
 def build_phase4_hardware_plan(pump_ids, status_grid):
     temp_units = []
@@ -68,9 +81,9 @@ def restore_project_formula_state(db_file, project_id):
     default_var_mapping = pd.DataFrame(columns=["Variable", "Mapped Sensor"])
     default_formulas = pd.DataFrame(columns=["Formula Name", "Target", "Equation"])
 
-    conn = sqlite3.connect(db_file)
+    conn = _get_conn(db_file)
     proj_row = conn.execute(
-        "SELECT step5_var_mapping, step5_formulas FROM projects WHERE project_id = ?",
+        _adapt_sql(conn, "SELECT step5_var_mapping, step5_formulas FROM projects WHERE project_id = ?"),
         (project_id,),
     ).fetchone()
     conn.close()
@@ -92,9 +105,9 @@ def restore_project_formula_state(db_file, project_id):
 
 
 def restore_project_hardware_state(db_file, project_id):
-    conn = sqlite3.connect(db_file)
+    conn = _get_conn(db_file)
     proj_row = conn.execute(
-        "SELECT hardware_list, hardware_dfs, hardware_ds FROM projects WHERE project_id = ?",
+        _adapt_sql(conn, "SELECT hardware_list, hardware_dfs, hardware_ds FROM projects WHERE project_id = ?"),
         (project_id,),
     ).fetchone()
     conn.close()

@@ -1,6 +1,6 @@
 import datetime
 import pandas as pd
-from pump_architect.db.connection import get_connection
+from pump_architect.db.connection import get_connection, adapt_sql
 
 
 def get_projects():
@@ -15,8 +15,8 @@ def delete_project(project_id):
     """Delete a project and its associated pumps."""
     conn = get_connection()
     c = conn.cursor()
-    c.execute("DELETE FROM projects WHERE project_id=?", (project_id,))
-    c.execute("DELETE FROM pumps WHERE project_id=?", (project_id,))
+    c.execute(adapt_sql(conn, "DELETE FROM projects WHERE project_id=?"), (project_id,))
+    c.execute(adapt_sql(conn, "DELETE FROM pumps WHERE project_id=?"), (project_id,))
     conn.commit()
     conn.close()
 
@@ -39,11 +39,11 @@ def save_project(project_name, p_type, t_type, pumps_df, tanks, edit_id=None):
     c = conn.cursor()
     try:
         if edit_id:
-            c.execute("DELETE FROM projects WHERE project_id=?", (edit_id,))
-            c.execute("DELETE FROM pumps WHERE project_id=?", (edit_id,))
+            c.execute(adapt_sql(conn, "DELETE FROM projects WHERE project_id=?"), (edit_id,))
+            c.execute(adapt_sql(conn, "DELETE FROM pumps WHERE project_id=?"), (edit_id,))
 
         c.execute(
-            "INSERT INTO projects VALUES (?,?,?,?)",
+            adapt_sql(conn, "INSERT INTO projects VALUES (?,?,?,?)"),
             (project_name, p_type, t_type, datetime.datetime.now()),
         )
         for _, row in pumps_df.dropna(subset=["Pump ID"]).iterrows():
@@ -52,7 +52,7 @@ def save_project(project_name, p_type, t_type, pumps_df, tanks, edit_id=None):
                 (t for t, p_list in tanks.items() if p_id in p_list), "Unassigned"
             )
             c.execute(
-                "INSERT INTO pumps VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                adapt_sql(conn, "INSERT INTO pumps VALUES (?,?,?,?,?,?,?,?,?,?,?,?)"),
                 (
                     p_id,
                     project_name,

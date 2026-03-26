@@ -4,6 +4,19 @@ import sqlite3
 import pandas as pd
 import streamlit as st
 
+from pump_architect.db.connection import (
+    adapt_sql as _adapt_sql,
+    get_database_url as _get_db_url,
+    get_connection as _get_pg_conn,
+)
+
+
+def _get_conn(db_file):
+    """Return the appropriate DB connection (Postgres or SQLite)."""
+    if _get_db_url():
+        return _get_pg_conn()
+    return sqlite3.connect(db_file)
+
 
 def init_db(db_file):
     conn = sqlite3.connect(db_file)
@@ -207,13 +220,16 @@ def handle_open_project(
     restore_project_hardware_state,
     restore_project_formula_state,
 ):
-    conn = sqlite3.connect(db_file)
+    conn = _get_conn(db_file)
     proj_row = conn.execute(
-        "SELECT project_id, type, test_type, run_mode, target_val, tanks, "
-        "step6_watchdogs, step6_limits, step6_event_log, watchdog_sync_ts, "
-        "step6_extra_limits, layout, step6_dashboard_tracker, "
-        "step5_var_mapping, step5_formulas "
-        "FROM projects WHERE project_id = ?",
+        _adapt_sql(
+            conn,
+            "SELECT project_id, type, test_type, run_mode, target_val, tanks, "
+            "step6_watchdogs, step6_limits, step6_event_log, watchdog_sync_ts, "
+            "step6_extra_limits, layout, step6_dashboard_tracker, "
+            "step5_var_mapping, step5_formulas "
+            "FROM projects WHERE project_id = ?",
+        ),
         (project_id,),
     ).fetchone()
 
@@ -226,7 +242,7 @@ def handle_open_project(
         st.session_state.water_tanks = proj_row[5].split("||") if proj_row[5] else ["Water Tank 1"]
 
         try:
-            query = "SELECT * FROM pumps WHERE project_id = ?"
+            query = _adapt_sql(conn, "SELECT * FROM pumps WHERE project_id = ?")
             st.session_state.active_pumps_df = pd.read_sql_query(query, conn, params=(project_id,))
         except Exception:
             st.session_state.active_pumps_df = pd.DataFrame()
@@ -290,13 +306,16 @@ def handle_open_project(
 
 
 def handle_modify_project(db_file, project_id, restore_project_formula_state):
-    conn = sqlite3.connect(db_file)
+    conn = _get_conn(db_file)
     proj_row = conn.execute(
-        "SELECT project_id, type, test_type, run_mode, target_val, tanks, "
-        "layout, hardware_list, hardware_dfs, hardware_ds, step6_watchdogs, "
-        "step6_limits, step6_event_log, watchdog_sync_ts, step6_extra_limits, "
-        "step6_dashboard_tracker, step5_var_mapping, step5_formulas "
-        "FROM projects WHERE project_id = ?",
+        _adapt_sql(
+            conn,
+            "SELECT project_id, type, test_type, run_mode, target_val, tanks, "
+            "layout, hardware_list, hardware_dfs, hardware_ds, step6_watchdogs, "
+            "step6_limits, step6_event_log, watchdog_sync_ts, step6_extra_limits, "
+            "step6_dashboard_tracker, step5_var_mapping, step5_formulas "
+            "FROM projects WHERE project_id = ?",
+        ),
         (project_id,),
     ).fetchone()
 
@@ -355,7 +374,7 @@ def handle_modify_project(db_file, project_id, restore_project_formula_state):
                 pass
 
         try:
-            query = "SELECT * FROM pumps WHERE project_id = ?"
+            query = _adapt_sql(conn, "SELECT * FROM pumps WHERE project_id = ?")
             pumps_df = pd.read_sql_query(query, conn, params=(project_id,))
             if not pumps_df.empty:
                 keep_cols = [

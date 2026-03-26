@@ -3,6 +3,19 @@ import sqlite3
 import streamlit as st
 
 from pump_architect import legacy_dashboard_page
+from pump_architect.db.connection import (
+    adapt_sql as _adapt_sql,
+    get_database_url as _get_db_url,
+    get_connection as _get_pg_conn,
+    is_postgres as _is_pg,
+)
+
+
+def _get_conn(db_file):
+    """Return the appropriate DB connection (Postgres or SQLite)."""
+    if _get_db_url():
+        return _get_pg_conn()
+    return sqlite3.connect(db_file)
 
 
 def route_simple_pages(page, render_project_form, render_add_record_wizard, render_add_maintenance_wizard):
@@ -87,7 +100,7 @@ def render_home_page(db_file, handle_open_project, handle_modify_project):
     for col, txt in zip(h, ["No.", "Status", "Name", "Date", "Actions"]):
         col.markdown(f"<div class='col-header'>{txt}</div>", unsafe_allow_html=True)
 
-    conn = sqlite3.connect(db_file)
+    conn = _get_conn(db_file)
     projs = conn.execute("SELECT project_id, type, test_type, created_at FROM projects ORDER BY created_at DESC").fetchall()
 
     for idx, p in enumerate(projs):
@@ -113,19 +126,31 @@ def render_home_page(db_file, handle_open_project, handle_modify_project):
                 st.rerun()
 
             if c[6].button("DANGER Confirm Delete Project", key=f"conf_{idx}", use_container_width=True, type="primary"):
-                conn = sqlite3.connect(db_file)
-                conn.execute("DELETE FROM projects WHERE project_id=?", (p[0],))
-
+                del_conn = _get_conn(db_file)
+                del_conn.execute(
+                    _adapt_sql(del_conn, "DELETE FROM projects WHERE project_id=?"),
+                    (p[0],),
+                )
+                # Always use project_id column (the legacy fallback for old SQLite DBs
+                # that used project_name is skipped when Postgres is active because
+                # init_legacy_db always creates the column as project_id)
                 try:
-                    conn.execute("DELETE FROM pumps WHERE project_name=?", (p[0],))
-                except sqlite3.OperationalError:
-                    cursor = conn.execute("PRAGMA table_info(pumps)")
-                    cols = [info[1] for info in cursor.fetchall()]
-                    actual_col = cols[1]
-                    conn.execute(f"DELETE FROM pumps WHERE {actual_col}=?", (p[0],))
+                    del_conn.execute(
+                        _adapt_sql(del_conn, "DELETE FROM pumps WHERE project_id=?"),
+                        (p[0],),
+                    )
+                except Exception:
+                    if not _is_pg(del_conn):
+                        # SQLite backward-compat: discover actual column name via PRAGMA
+                        cursor = del_conn.execute("PRAGMA table_info(pumps)")
+                        cols = [info[1] for info in cursor.fetchall()]
+                        actual_col = cols[1]
+                        del_conn.execute(
+                            f"DELETE FROM pumps WHERE {actual_col}=?", (p[0],)
+                        )
 
-                conn.commit()
-                conn.close()
+                del_conn.commit()
+                del_conn.close()
                 del st.session_state[confirm_key]
                 st.rerun()
         else:

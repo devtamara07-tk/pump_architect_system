@@ -1,4 +1,6 @@
 
+import os
+
 import streamlit as st
 from pump_architect.legacy_formula_utils import (
     parse_ts,
@@ -11,14 +13,23 @@ from pump_architect import legacy_add_record_wizard
 from pump_architect import legacy_project_form
 from pump_architect import legacy_pages
 from pump_architect import legacy_project_state
+from pump_architect.db.connection import get_database_url
 
 # --- 1. INITIALIZATION & DATABASE ---
 DB_FILE = "architect_system.db"
 
+# Determine which backend to use.
+DATABASE_URL = get_database_url()
+USE_POSTGRES = DATABASE_URL is not None
+
 st.set_page_config(page_title="Pump Architect", layout="wide")
 
 def init_db():
-    return legacy_project_state.init_db(DB_FILE)
+    if USE_POSTGRES:
+        from pump_architect.db.schema import init_legacy_db
+        init_legacy_db()
+    else:
+        legacy_project_state.init_db(DB_FILE)
 
 if "page" not in st.session_state: st.session_state.page = "home"
 if "wizard_step" not in st.session_state: st.session_state.wizard_step = 1
@@ -118,6 +129,12 @@ def handle_modify_project(project_id):
 init_db()
 inject_industrial_css()
 render_confirmation_banner()
+
+# Show which database backend is active (visible in the sidebar for transparency)
+if USE_POSTGRES:
+    st.sidebar.success("🗄️ Database: **Neon Postgres**")
+else:
+    st.sidebar.info("🗄️ Database: **SQLite** (local)")
 
 simple_page_handled = legacy_pages.route_simple_pages(
     st.session_state.page,

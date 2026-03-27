@@ -178,7 +178,6 @@ def init_db_postgres(database_url):
                 id SERIAL PRIMARY KEY,
                 project_id TEXT NOT NULL,
                 event_ts TEXT NOT NULL,
-                conn = get_connection()
                 severity TEXT,
                 maintenance_status TEXT,
                 action_taken TEXT,

@@ -12,8 +12,8 @@ def get_project_records(db_file, project_id):
                tank_temps_json, status_grid_json, pump_readings_json, alarms_json,
                ack_alarm, created_at
         FROM project_records
-        WHERE project_id = ?
-        ORDER BY datetime(record_ts) DESC, id DESC
+        WHERE project_id = %s
+        ORDER BY record_ts DESC, id DESC
         """,
         (project_id,),
     ).fetchall()
@@ -49,7 +49,7 @@ def get_latest_record(db_file, project_id):
 def has_baseline_record(db_file, project_id):
     conn = get_connection()
     row = conn.execute(
-        "SELECT COUNT(*) FROM project_records WHERE project_id = ? AND record_phase = ?",
+        "SELECT COUNT(*) FROM project_records WHERE project_id = %s AND record_phase = %s",
         (project_id, "Baseline Calibration (Cold State)"),
     ).fetchone()
     conn.close()
@@ -59,19 +59,19 @@ def has_baseline_record(db_file, project_id):
 def clear_project_records(db_file, project_id):
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM project_records WHERE project_id = ?", (project_id,))
+    cursor.execute("DELETE FROM project_records WHERE project_id = %s", (project_id,))
     deleted_rows = cursor.rowcount if cursor.rowcount is not None else 0
 
     # Clearing all run-test records should also reset per-tank activation history.
     # Otherwise Phase 0 still shows tanks as active even though no baseline/data remains.
     project_row = cursor.execute(
-        "SELECT tanks FROM projects WHERE project_id = ?",
+        "SELECT tanks FROM projects WHERE project_id = %s",
         (project_id,),
     ).fetchone()
     tanks = project_row[0].split("||") if project_row and project_row[0] else ["Water Tank 1"]
     reset_start_dates = json.dumps({tank_name: None for tank_name in tanks})
     cursor.execute(
-        "UPDATE projects SET tank_start_dates = ? WHERE project_id = ?",
+        "UPDATE projects SET tank_start_dates = %s WHERE project_id = %s",
         (reset_start_dates, project_id),
     )
 
@@ -83,7 +83,7 @@ def clear_project_records(db_file, project_id):
 def clear_project_maintenance_events(db_file, project_id):
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM maintenance_events WHERE project_id = ?", (project_id,))
+    cursor.execute("DELETE FROM maintenance_events WHERE project_id = %s", (project_id,))
     deleted_rows = cursor.rowcount if cursor.rowcount is not None else 0
     conn.commit()
     conn.close()
@@ -97,8 +97,8 @@ def get_maintenance_events(db_file, project_id):
          SELECT id, project_id, event_ts, affected_pumps_json, event_type, severity,
              maintenance_status, action_taken, notes, source_record_id, created_at
         FROM maintenance_events
-        WHERE project_id = ?
-        ORDER BY datetime(event_ts) DESC, id DESC
+        WHERE project_id = %s
+        ORDER BY event_ts DESC, id DESC
         """,
         (project_id,),
     ).fetchall()
@@ -121,7 +121,7 @@ def get_tank_start_dates(db_file, project_id):
     """
     conn = get_connection()
     row = conn.execute(
-        "SELECT tanks, tank_start_dates, created_at FROM projects WHERE project_id = ?",
+        "SELECT tanks, tank_start_dates, created_at FROM projects WHERE project_id = %s",
         (project_id,),
     ).fetchone()
     if not row:
@@ -142,14 +142,14 @@ def get_tank_start_dates(db_file, project_id):
     if not any(result.values()):
         cur = conn.cursor()
         cur.execute(
-            "SELECT COUNT(*) FROM project_records WHERE project_id = ?", (project_id,)
+            "SELECT COUNT(*) FROM project_records WHERE project_id = %s", (project_id,)
         )
         has_records = cur.fetchone()[0]
         if has_records > 0:
             fallback_ts = created_at or "2025-01-01 08:00:00"
             result = {t: fallback_ts for t in tanks}
             cur.execute(
-                "UPDATE projects SET tank_start_dates = ? WHERE project_id = ?",
+                "UPDATE projects SET tank_start_dates = %s WHERE project_id = %s",
                 (json.dumps(result), project_id),
             )
             conn.commit()
@@ -163,7 +163,7 @@ def save_tank_start_dates(db_file, project_id, tank_start_dates_dict):
     """Persist the full {tank_name: ts_str} dict to projects.tank_start_dates."""
     conn = get_connection()
     conn.execute(
-        "UPDATE projects SET tank_start_dates = ? WHERE project_id = ?",
+        "UPDATE projects SET tank_start_dates = %s WHERE project_id = %s",
         (json.dumps(tank_start_dates_dict), project_id),
     )
     conn.commit()
@@ -183,8 +183,8 @@ def get_latest_record_for_tank(db_file, project_id, tank_name):
                ack_alarm, created_at,
                COALESCE(active_tanks, 'ALL') AS active_tanks
         FROM project_records
-        WHERE project_id = ?
-        ORDER BY datetime(record_ts) DESC, id DESC
+        WHERE project_id = %s
+        ORDER BY record_ts DESC, id DESC
         """,
         (project_id,),
     ).fetchall()
@@ -214,7 +214,7 @@ def has_baseline_record_for_tank(db_file, project_id, tank_name):
         """
         SELECT COALESCE(active_tanks, 'ALL')
         FROM project_records
-        WHERE project_id = ? AND record_phase = ?
+        WHERE project_id = %s AND record_phase = %s
         """,
         (project_id, "Baseline Calibration (Cold State)"),
     ).fetchall()

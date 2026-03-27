@@ -16,7 +16,7 @@ def save_project_record(
     c = conn.cursor()
     if draft["record_phase"] == "Baseline Calibration (Cold State)":
         c.execute(
-            "DELETE FROM project_records WHERE project_id = ? AND record_phase = ?",
+            "DELETE FROM project_records WHERE project_id = %s AND record_phase = %s",
             (project_id, "Baseline Calibration (Cold State)"),
         )
 
@@ -27,7 +27,7 @@ def save_project_record(
             project_id, record_phase, record_ts, method, ambient_temp,
             tank_temps_json, status_grid_json, pump_readings_json, alarms_json,
             ack_alarm, active_tanks
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """,
         (
             project_id,

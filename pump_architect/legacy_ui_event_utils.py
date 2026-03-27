@@ -161,7 +161,7 @@ def persist_event_log_for_project(db_file, project_id):
         conn = get_connection()
         cur = conn.cursor()
         cur.execute(
-            "UPDATE projects SET step6_event_log = ? WHERE project_id = ?",
+            "UPDATE projects SET step6_event_log = %s WHERE project_id = %s",
             (json.dumps(st.session_state.get("event_log", [])), project_id),
         )
         conn.commit()
@@ -202,7 +202,7 @@ def add_event_log_entry(text):
     conn = get_connection()
     cur = conn.cursor()
     for event_id in to_close_ids:
-        cur.execute("UPDATE maintenance_events SET maintenance_status = ? WHERE id = ?", ("Closed", event_id))
+        cur.execute("UPDATE maintenance_events SET maintenance_status = %s WHERE id = %s", ("Closed", event_id))
     conn.commit()
     cur.close()
     conn.close()

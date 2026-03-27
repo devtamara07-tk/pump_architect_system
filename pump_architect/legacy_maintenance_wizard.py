@@ -105,7 +105,7 @@ def render_add_maintenance_wizard(
                 INSERT INTO maintenance_events (
                     project_id, event_ts, affected_pumps_json, event_type, severity,
                     maintenance_status, action_taken, notes, source_record_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
                     project_id,
@@ -185,7 +185,7 @@ def render_add_maintenance_wizard(
                 if selected_id is not None:
                     conn = get_connection()
                     cur = conn.cursor()
-                    cur.execute("UPDATE maintenance_events SET maintenance_status = ? WHERE id = ?", (new_status, selected_id))
+                    cur.execute("UPDATE maintenance_events SET maintenance_status = %s WHERE id = %s", (new_status, selected_id))
                     conn.commit()
                     cur.close()
                     conn.close()

@@ -308,7 +308,7 @@ def render_project_form():
         if st.session_state.get("_restoring_project", False):
             conn = get_connection()
             cur = conn.cursor()
-            cur.execute("SELECT hardware_list, hardware_dfs, hardware_ds FROM projects WHERE project_id = ?", (st.session_state.get("current_project", ""),))
+            cur.execute("SELECT hardware_list, hardware_dfs, hardware_ds FROM projects WHERE project_id = %s", (st.session_state.get("current_project", ""),))
             proj_row = cur.fetchone()
             cur.close()
             try:
@@ -318,16 +318,52 @@ def render_project_form():
                 pass
 
             cur = conn.cursor()
-            cur.execute("INSERT OR REPLACE INTO projects (project_id, type, test_type, run_mode, target_val, created_at, tanks, layout, hardware_list, hardware_dfs, hardware_ds, step6_watchdogs, step6_limits, step6_event_log, watchdog_sync_ts, step6_extra_limits, step6_dashboard_tracker, step5_var_mapping, step5_formulas) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            cur.execute("""
+                INSERT INTO projects (project_id, type, test_type, run_mode, target_val, created_at, tanks, layout, hardware_list, hardware_dfs, hardware_ds, step6_watchdogs, step6_limits, step6_event_log, watchdog_sync_ts, step6_extra_limits, step6_dashboard_tracker, step5_var_mapping, step5_formulas)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (project_id) DO UPDATE SET
+                    type=EXCLUDED.type,
+                    test_type=EXCLUDED.test_type,
+                    run_mode=EXCLUDED.run_mode,
+                    target_val=EXCLUDED.target_val,
+                    created_at=EXCLUDED.created_at,
+                    tanks=EXCLUDED.tanks,
+                    layout=EXCLUDED.layout,
+                    hardware_list=EXCLUDED.hardware_list,
+                    hardware_dfs=EXCLUDED.hardware_dfs,
+                    hardware_ds=EXCLUDED.hardware_ds,
+                    step6_watchdogs=EXCLUDED.step6_watchdogs,
+                    step6_limits=EXCLUDED.step6_limits,
+                    step6_event_log=EXCLUDED.step6_event_log,
+                    watchdog_sync_ts=EXCLUDED.watchdog_sync_ts,
+                    step6_extra_limits=EXCLUDED.step6_extra_limits,
+                    step6_dashboard_tracker=EXCLUDED.step6_dashboard_tracker,
+                    step5_var_mapping=EXCLUDED.step5_var_mapping,
+                    step5_formulas=EXCLUDED.step5_formulas
+            """,
                 (project_name, proj_type, test_type, run_mode, target_val, timestamp, tanks_str, layout_json, hardware_list_json, hardware_dfs_json, step6_watchdogs_json, step6_limits_json, step6_event_log_json, watchdog_sync_ts, step6_extra_limits_json, step6_dashboard_tracker, step5_var_mapping_json, step5_formulas_json))
 
             # --- Delete old pump records for this project to prevent duplicates ---
-            cur.execute("DELETE FROM pumps WHERE project_id = ?", (project_name,))
+            cur.execute("DELETE FROM pumps WHERE project_id = %s", (project_name,))
 
             # Save Pumps Specs (Insulation only, no tank assignment, columns must match schema)
             for _, row in st.session_state.specs_df.dropna(subset=["Pump ID"]).iterrows():
                 p_id = row["Pump ID"]
-                cur.execute("INSERT OR REPLACE INTO pumps (pump_id, project_id, `Pump Model`, `ISO No.`, HP, kW, `Voltage (V)`, `Amp Min`, `Amp Max`, Phase, Hertz, Insulation) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                cur.execute("""
+                    INSERT INTO pumps (pump_id, project_id, "Pump Model", "ISO No.", HP, kW, "Voltage (V)", "Amp Min", "Amp Max", Phase, Hertz, Insulation)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (pump_id, project_id) DO UPDATE SET
+                        "Pump Model"=EXCLUDED."Pump Model",
+                        "ISO No."=EXCLUDED."ISO No.",
+                        HP=EXCLUDED.HP,
+                        kW=EXCLUDED.kW,
+                        "Voltage (V)"=EXCLUDED."Voltage (V)",
+                        "Amp Min"=EXCLUDED."Amp Min",
+                        "Amp Max"=EXCLUDED."Amp Max",
+                        Phase=EXCLUDED.Phase,
+                        Hertz=EXCLUDED.Hertz,
+                        Insulation=EXCLUDED.Insulation
+                """,
                     (
                         p_id,
                         project_name,
@@ -1064,7 +1100,6 @@ def render_project_form():
 
             conn = get_connection()
             c = conn.cursor()
-
             try:
                 run_mode = st.session_state.get("run_mode", "Continuous")
                 target_val = str(st.session_state.get("target_val", "0"))
@@ -1097,21 +1132,59 @@ def render_project_form():
                 step5_var_mapping_json = st.session_state.get("var_mapping_df", pd.DataFrame(columns=["Variable", "Mapped Sensor"])).to_json()
                 step5_formulas_json = st.session_state.get("formulas_df", pd.DataFrame(columns=["Formula Name", "Target", "Equation"])).to_json()
 
+                # Try to add column if not exists
                 try:
                     c.execute("ALTER TABLE projects ADD COLUMN watchdog_sync_ts TEXT")
                 except Exception:
                     pass
 
-                c.execute("INSERT OR REPLACE INTO projects (project_id, type, test_type, run_mode, target_val, created_at, tanks, layout, hardware_list, hardware_dfs, hardware_ds, step6_watchdogs, step6_limits, step6_event_log, watchdog_sync_ts, step6_extra_limits, step6_dashboard_tracker, step5_var_mapping, step5_formulas) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                # Main DB logic
+                c.execute("""
+                    INSERT INTO projects (project_id, type, test_type, run_mode, target_val, created_at, tanks, layout, hardware_list, hardware_dfs, hardware_ds, step6_watchdogs, step6_limits, step6_event_log, watchdog_sync_ts, step6_extra_limits, step6_dashboard_tracker, step5_var_mapping, step5_formulas)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (project_id) DO UPDATE SET
+                        type=EXCLUDED.type,
+                        test_type=EXCLUDED.test_type,
+                        run_mode=EXCLUDED.run_mode,
+                        target_val=EXCLUDED.target_val,
+                        created_at=EXCLUDED.created_at,
+                        tanks=EXCLUDED.tanks,
+                        layout=EXCLUDED.layout,
+                        hardware_list=EXCLUDED.hardware_list,
+                        hardware_dfs=EXCLUDED.hardware_dfs,
+                        hardware_ds=EXCLUDED.hardware_ds,
+                        step6_watchdogs=EXCLUDED.step6_watchdogs,
+                        step6_limits=EXCLUDED.step6_limits,
+                        step6_event_log=EXCLUDED.step6_event_log,
+                        watchdog_sync_ts=EXCLUDED.watchdog_sync_ts,
+                        step6_extra_limits=EXCLUDED.step6_extra_limits,
+                        step6_dashboard_tracker=EXCLUDED.step6_dashboard_tracker,
+                        step5_var_mapping=EXCLUDED.step5_var_mapping,
+                        step5_formulas=EXCLUDED.step5_formulas
+                """,
                     (project_name, proj_type, test_type, run_mode, target_val, timestamp, tanks_str, layout_json, hardware_list_json, hardware_dfs_json, hardware_ds_json, step6_watchdogs_json, step6_limits_json, step6_event_log_json, watchdog_sync_ts, step6_extra_limits_json, step6_dashboard_tracker, step5_var_mapping_json, step5_formulas_json))
 
                 # --- Delete old pump records for this project to prevent duplicates ---
-                c.execute("DELETE FROM pumps WHERE project_id = ?", (project_name,))
+                c.execute("DELETE FROM pumps WHERE project_id = %s", (project_name,))
 
                 # Save Pumps Specs (Insulation only, no tank assignment, columns must match schema)
                 for _, row in st.session_state.specs_df.dropna(subset=["Pump ID"]).iterrows():
                     p_id = row["Pump ID"]
-                    c.execute("INSERT OR REPLACE INTO pumps (pump_id, project_id, `Pump Model`, `ISO No.`, HP, kW, `Voltage (V)`, `Amp Min`, `Amp Max`, Phase, Hertz, Insulation) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    c.execute("""
+                        INSERT INTO pumps (pump_id, project_id, "Pump Model", "ISO No.", HP, kW, "Voltage (V)", "Amp Min", "Amp Max", Phase, Hertz, Insulation)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (pump_id, project_id) DO UPDATE SET
+                            "Pump Model"=EXCLUDED."Pump Model",
+                            "ISO No."=EXCLUDED."ISO No.",
+                            HP=EXCLUDED.HP,
+                            kW=EXCLUDED.kW,
+                            "Voltage (V)"=EXCLUDED."Voltage (V)",
+                            "Amp Min"=EXCLUDED."Amp Min",
+                            "Amp Max"=EXCLUDED."Amp Max",
+                            Phase=EXCLUDED.Phase,
+                            Hertz=EXCLUDED.Hertz,
+                            Insulation=EXCLUDED.Insulation
+                    """,
                         (
                             p_id,
                             project_name,

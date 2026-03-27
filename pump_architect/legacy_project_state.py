@@ -292,7 +292,6 @@ def init_db_postgres(database_url):
 
 
 def handle_open_project(
-    db_file,
     project_id,
     restore_project_hardware_state,
     restore_project_formula_state,
@@ -382,7 +381,7 @@ def handle_open_project(
     conn.close()
 
 
-def handle_modify_project(db_file, project_id, restore_project_formula_state):
+def handle_modify_project(project_id, restore_project_formula_state):
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(

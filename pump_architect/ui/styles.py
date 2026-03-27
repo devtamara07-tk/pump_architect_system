@@ -394,5 +394,39 @@ def inject_compact_css():
                     font-size: 2rem;
                 }
             }
+
+            /* Extra mobile-friendly tweaks for phones */
+            @media (max-width: 600px) {
+                [data-testid="stMainBlockContainer"] {
+                    padding-left: 0.3rem !important;
+                    padding-right: 0.3rem !important;
+                }
+                .hero-panel {
+                    padding: 0.7rem 0.3rem;
+                }
+                .hero-title {
+                    font-size: 1.3rem;
+                }
+                .hero-subtitle {
+                    font-size: 0.9rem;
+                }
+                .section-heading {
+                    font-size: 1rem;
+                }
+                .dashboard-title {
+                    font-size: 1.1rem;
+                }
+                .project-table-header, .project-cell {
+                    font-size: 0.85rem;
+                }
+                img, .stImage {
+                    max-width: 100% !important;
+                    height: auto !important;
+                }
+                .stButton > button, .stDownloadButton > button {
+                    min-height: 2.2rem !important;
+                    font-size: 0.9rem !important;
+                }
+            }
         </style>
     """, unsafe_allow_html=True)

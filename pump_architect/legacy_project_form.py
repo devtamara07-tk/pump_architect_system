@@ -437,6 +437,8 @@ def render_project_form():
 
         # 4. Hardware Configuration Form
         if st.session_state.hardware_list:
+            # Define assignment options for selectboxes
+            assignment_options = ["None (Unused)"] + (available_pumps if 'available_pumps' in locals() else [])
             with st.form("hardware_mapping_form"):
                 st.markdown("<p style='color: white;'>⚠️ Configure channels and data sources, then click 'Confirm Hardware Setup' below.</p>", unsafe_allow_html=True)
 

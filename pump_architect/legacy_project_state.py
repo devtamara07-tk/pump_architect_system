@@ -297,14 +297,16 @@ def handle_open_project(
 ):
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute(
+    query = (
         "SELECT project_id, type, test_type, run_mode, target_val, tanks, "
         "step6_watchdogs, step6_limits, step6_event_log, watchdog_sync_ts, "
         "step6_extra_limits, layout, step6_dashboard_tracker, "
         "step5_var_mapping, step5_formulas "
-        "FROM projects WHERE project_id = %s",
-        (project_id,),
+        "FROM projects WHERE project_id = %s"
     )
+    params = (project_id,)
+    print(f"DEBUG: Executing SQL: {query} | Params: {params}")
+    cur.execute(query, params)
     proj_row = cur.fetchone()
     cur.close()
 

@@ -15,8 +15,8 @@ def delete_project(project_id):
     """Delete a project and its associated pumps."""
     conn = get_connection()
     c = conn.cursor()
-    c.execute("DELETE FROM projects WHERE project_id=?", (project_id,))
-    c.execute("DELETE FROM pumps WHERE project_id=?", (project_id,))
+    c.execute("DELETE FROM projects WHERE project_id=%s", (project_id,))
+    c.execute("DELETE FROM pumps WHERE project_id=%s", (project_id,))
     conn.commit()
     conn.close()
 
@@ -39,8 +39,8 @@ def save_project(project_name, p_type, t_type, pumps_df, tanks, edit_id=None):
     c = conn.cursor()
     try:
         if edit_id:
-            c.execute("DELETE FROM projects WHERE project_id=?", (edit_id,))
-            c.execute("DELETE FROM pumps WHERE project_id=?", (edit_id,))
+            c.execute("DELETE FROM projects WHERE project_id=%s", (edit_id,))
+            c.execute("DELETE FROM pumps WHERE project_id=%s", (edit_id,))
 
         c.execute(
             "INSERT INTO projects VALUES (?,?,?,?)",

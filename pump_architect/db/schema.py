@@ -25,8 +25,27 @@ def init_db():
         setup_id = "setup_id INTEGER PRIMARY KEY AUTOINCREMENT"
 
     c.execute(
-        """CREATE TABLE IF NOT EXISTS projects
-           (project_id TEXT PRIMARY KEY, type TEXT, test_type TEXT, created_at DATETIME)"""
+        """CREATE TABLE IF NOT EXISTS projects 
+        (project_id TEXT PRIMARY KEY, 
+         type TEXT, 
+         test_type TEXT, 
+         created_at DATETIME, 
+         tanks TEXT, 
+         layout TEXT, 
+         hardware_list TEXT, 
+         hardware_dfs TEXT, 
+         hardware_ds TEXT, 
+         step6_watchdogs TEXT, 
+         step6_limits TEXT, 
+         step6_event_log TEXT, 
+         watchdog_sync_ts TEXT, 
+         step6_extra_limits TEXT, 
+         step6_dashboard_tracker TEXT, 
+         step5_var_mapping TEXT, 
+         step5_formulas TEXT, 
+         run_mode TEXT, 
+         target_val TEXT, 
+         tank_start_dates TEXT)"""
     )
 
     c.execute(

@@ -46,7 +46,7 @@ def render_home():
 
     st.markdown(
         """
-        <div class="hero-panel">
+        <div class="hero-panel" style="width:100%;max-width:100vw;box-sizing:border-box;margin-left:0;margin-right:0;">
             <div class="hero-kicker">Pump Architect System</div>
             <h1 class="hero-title">Pump Test Architect 1.0</h1>
             <p class="hero-subtitle">Industrial project control for pump configuration, tank layout planning, and dashboard review.</p>
@@ -55,11 +55,9 @@ def render_home():
         unsafe_allow_html=True,
     )
 
-    col_new, _ = st.columns(2)
-    with col_new:
-        if st.button("Create New Project", type="primary", use_container_width=True):
-            st.session_state.page = "create"
-            st.rerun()
+    if st.button("Create New Project", type="primary", use_container_width=True):
+        st.session_state.page = "create"
+        st.rerun()
 
     st.markdown("<div class='section-heading'>Current Projects</div>", unsafe_allow_html=True)
     projects = get_projects()
@@ -71,42 +69,98 @@ def render_home():
             projects = projects.sort_values(by="created_at", ascending=False, na_position="last")
 
         with st.container(border=True):
-            header_cols = st.columns(7)
-            for col, title in zip(header_cols, ["No.", "Status", "Name", "Date", "Open", "Modify", "Delete"]):
-                col.markdown(f"<div class='project-table-header'>{title}</div>", unsafe_allow_html=True)
-
+            st.markdown("""
+            <div class="project-table-header-row" style="display: flex; flex-wrap: wrap; width: 100%;">
+                <div class="project-table-header" style="flex:1;min-width:60px;">No.</div>
+                <div class="project-table-header" style="flex:1;min-width:80px;">Status</div>
+                <div class="project-table-header" style="flex:2;min-width:120px;">Name</div>
+                <div class="project-table-header" style="flex:2;min-width:100px;">Date</div>
+                <div class="project-table-header" style="flex:1;min-width:80px;">Open</div>
+                <div class="project-table-header" style="flex:1;min-width:80px;">Modify</div>
+                <div class="project-table-header" style="flex:1;min-width:80px;">Delete</div>
+            </div>
+            """, unsafe_allow_html=True)
             for idx, (_, row) in enumerate(projects.iterrows(), start=1):
                 date_str = str(row.get("created_at", ""))[:10] if row.get("created_at") else "N/A"
-                row_cols = st.columns(7)
                 confirm_key = f"delete_confirm_{row['project_id']}"
-
-                row_cols[0].markdown(f"<div class='project-cell'>{idx}</div>", unsafe_allow_html=True)
-                row_cols[1].markdown("<div class='status-pill'>Standby</div>", unsafe_allow_html=True)
-                row_cols[2].markdown(f"<div class='project-cell'>{row['project_id']}</div>", unsafe_allow_html=True)
-                row_cols[3].markdown(f"<div class='project-cell'>{date_str}</div>", unsafe_allow_html=True)
-
-                if row_cols[4].button("Open", key=f"open_{row['project_id']}", use_container_width=True):
+                st.markdown(f"""
+                <div class="project-table-row" style="display: flex; flex-wrap: wrap; width: 100%; align-items: center;">
+                    <div class="project-cell" style="flex:1;min-width:60px;">{idx}</div>
+                    <div class="status-pill" style="flex:1;min-width:80px;">Standby</div>
+                    <div class="project-cell" style="flex:2;min-width:120px;">{row['project_id']}</div>
+                    <div class="project-cell" style="flex:2;min-width:100px;">{date_str}</div>
+                    <div style="flex:1;min-width:80px;">{{OPEN_BTN}}</div>
+                    <div style="flex:1;min-width:80px;">{{MODIFY_BTN}}</div>
+                    <div style="flex:1;min-width:80px;">{{DELETE_BTN}}</div>
+                </div>
+                """, unsafe_allow_html=True)
+                open_btn = st.button("Open", key=f"open_{row['project_id']}")
+                modify_btn = st.button("Modify", key=f"mod_{row['project_id']}")
+                if st.session_state.get(confirm_key, False):
+                    cancel_btn = st.button("Cancel", key=f"cancel_{row['project_id']}")
+                    danger_btn = st.button("DANGER Confirm Delete Project", key=f"conf_{row['project_id']}", type="primary")
+                else:
+                    delete_btn = st.button("Delete Project", key=f"del_{row['project_id']}")
+                # Button actions
+                if open_btn:
                     st.session_state.selected_project = row['project_id']
                     st.session_state.page = "dashboard"
                     st.rerun()
-
-                if row_cols[5].button("Modify", key=f"mod_{row['project_id']}", use_container_width=True):
+                if modify_btn:
                     st.session_state.edit_project_id = row['project_id']
                     st.session_state.page = "modify"
                     st.rerun()
-
                 if st.session_state.get(confirm_key, False):
-                    if row_cols[6].button("Cancel", key=f"cancel_{row['project_id']}", use_container_width=True):
+                    if cancel_btn:
                         st.session_state.pop(confirm_key, None)
                         st.rerun()
-                    if row_cols[6].button("DANGER Confirm Delete Project", key=f"conf_{row['project_id']}", use_container_width=True, type="primary"):
+                    if danger_btn:
                         delete_project(row['project_id'])
                         st.session_state.pop(confirm_key, None)
                         st.rerun()
                 else:
-                    if row_cols[6].button("Delete Project", key=f"del_{row['project_id']}", use_container_width=True):
+                    if delete_btn:
                         st.session_state[confirm_key] = True
                         st.rerun()
-
                 if idx < len(projects.index):
                     st.markdown("<hr>", unsafe_allow_html=True)
+            .project-table-header-row, .project-table-row {
+                width: 100%;
+                display: flex;
+                flex-wrap: wrap;
+            }
+            @media (max-width: 900px) {
+                .hero-panel {
+                    padding: 1.2rem 0.5rem;
+                }
+                .hero-title {
+                    font-size: 1.5rem;
+                }
+                .project-table-header, .project-cell, .status-pill {
+                    font-size: 0.9rem;
+                }
+            }
+            @media (max-width: 600px) {
+                .hero-panel {
+                    padding: 0.4rem 0.1rem;
+                }
+                .hero-title {
+                    font-size: 1.1rem;
+                }
+                .hero-subtitle {
+                    font-size: 0.8rem;
+                }
+                .section-heading {
+                    font-size: 0.9rem;
+                }
+                .dashboard-title {
+                    font-size: 1rem;
+                }
+                .project-table-header, .project-cell, .status-pill {
+                    font-size: 0.75rem;
+                }
+                .project-table-header-row, .project-table-row {
+                    flex-direction: column;
+                    align-items: flex-start;
+                }
+            }

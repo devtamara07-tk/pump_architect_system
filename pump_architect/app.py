@@ -1,4 +1,7 @@
 import streamlit as st
+
+st.set_page_config(page_title="Pump Test Architect", layout="wide")
+
 from pump_architect.constants import FORM_STATE_KEYS
 from pump_architect.db.schema import init_db
 from pump_architect.ui.styles import inject_compact_css
@@ -6,7 +9,6 @@ from pump_architect.ui.pages.home import render_home
 from pump_architect.ui.pages.project_form import render_project_form
 from pump_architect.ui.pages.dashboard import render_dashboard
 
-st.set_page_config(page_title="Pump Test Architect", layout="wide")
 inject_compact_css()
 init_db()
 

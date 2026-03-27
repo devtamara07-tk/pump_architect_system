@@ -56,6 +56,13 @@ pytest -q
 
 ## Database
 
-- SQLite file: `architect_system.db`
-- Created automatically on first run
-- Local runtime artifact (not intended for source control)
+This application now requires a Postgres database. You must set the `DATABASE_URL` environment variable to your Postgres connection string before running the app.
+
+Example:
+
+```bash
+export DATABASE_URL="postgresql://username:password@host:port/dbname"
+streamlit run pump_app.py
+```
+
+The app will not run without a valid Postgres connection.

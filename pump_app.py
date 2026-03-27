@@ -1,43 +1,24 @@
-import os
 import streamlit as st
-from pump_architect.legacy_formula_utils import (
-    parse_ts,
-)
-from pump_architect import legacy_db_utils
-from pump_architect import legacy_ui_event_utils
-from pump_architect import legacy_state_utils
-from pump_architect import legacy_maintenance_wizard
-from pump_architect import legacy_add_record_wizard
-from pump_architect import legacy_project_form
-from pump_architect import legacy_pages
-from pump_architect import legacy_project_state
+from pump_architect.legacy_formula_utils import parse_ts
+from pump_architect import legacy_db_utils, legacy_ui_event_utils, legacy_state_utils, legacy_maintenance_wizard, legacy_add_record_wizard, legacy_project_form, legacy_pages, legacy_project_state
 
 # --- 1. INITIALIZATION & DATABASE ---
 
-DB_FILE = "architect_system.db"
-
+import os
 def get_database_url():
-    # 1) Prefer environment variable (Codespaces, local terminal, etc.)
     url = os.getenv("DATABASE_URL")
     if url:
         return url
-
-    # 2) Fall back to Streamlit secrets (Streamlit Community Cloud)
     try:
         return st.secrets["DATABASE_URL"]
     except Exception:
-        return None
+        raise RuntimeError("DATABASE_URL environment variable must be set for Postgres connection.")
 
 DATABASE_URL = get_database_url()
-USE_POSTGRES = DATABASE_URL is not None
-print("USE_POSTGRES:", USE_POSTGRES, "DATABASE_URL:", DATABASE_URL)
+print("[DEBUG] Using Postgres (Neon). DATABASE_URL:", DATABASE_URL)
 
 def init_db():
-    if USE_POSTGRES:
-        print("[DEBUG] Using Postgres (Neon). DATABASE_URL:", DATABASE_URL)
-        return legacy_project_state.init_db_postgres(DATABASE_URL)
-    print("[DEBUG] Using SQLite. DB_FILE:", DB_FILE)
-    return legacy_project_state.init_db(DB_FILE)
+    return legacy_project_state.init_db_postgres(DATABASE_URL)
 
 if "page" not in st.session_state: st.session_state.page = "home"
 if "wizard_step" not in st.session_state: st.session_state.wizard_step = 1

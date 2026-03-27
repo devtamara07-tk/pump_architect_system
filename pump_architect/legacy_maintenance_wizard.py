@@ -7,7 +7,6 @@ import streamlit as st
 
 
 def render_add_maintenance_wizard(
-    db_file,
     inject_css_fn,
     parse_ts_fn,
     get_maintenance_events_fn,
@@ -34,7 +33,9 @@ def render_add_maintenance_wizard(
     if "active_pumps_df" not in st.session_state or st.session_state.active_pumps_df.empty:
         conn = get_connection()
         cur = conn.cursor()
-        st.session_state.active_pumps_df = pd.read_sql_query("SELECT * FROM pumps WHERE project_id = ?", conn, params=(project_id,))
+        cur.execute("SELECT * FROM pumps WHERE project_id = %s", (project_id,))
+        rows = cur.fetchall()
+        st.session_state.active_pumps_df = pd.DataFrame(rows, columns=[desc[0] for desc in cur.description])
         cur.close()
         conn.close()
 

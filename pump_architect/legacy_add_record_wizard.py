@@ -23,7 +23,7 @@ from pump_architect.legacy_formula_utils import (
 )
 
 
-def render_add_record_wizard(db_file):
+def render_add_record_wizard():
     legacy_ui_event_utils.inject_industrial_css()
     project_id = st.session_state.get("current_project", "")
     if not project_id:

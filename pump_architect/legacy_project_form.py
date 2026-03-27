@@ -8,7 +8,7 @@ import streamlit as st
 from pump_architect import legacy_ui_event_utils
 
 
-def render_project_form(db_file):
+def render_project_form():
     legacy_ui_event_utils.inject_industrial_css()
     step = st.session_state.wizard_step
     st.markdown(
@@ -311,42 +311,41 @@ def render_project_form(db_file):
             cur.execute("SELECT hardware_list, hardware_dfs, hardware_ds FROM projects WHERE project_id = ?", (st.session_state.get("current_project", ""),))
             proj_row = cur.fetchone()
             cur.close()
-            conn.close()
-                try:
-                    cur = conn.cursor()
-                    cur.execute("ALTER TABLE projects ADD COLUMN watchdog_sync_ts TEXT")
-                except Exception:
-                    pass
-
+            try:
                 cur = conn.cursor()
-                cur.execute("INSERT OR REPLACE INTO projects (project_id, type, test_type, run_mode, target_val, created_at, tanks, layout, hardware_list, hardware_dfs, hardware_ds, step6_watchdogs, step6_limits, step6_event_log, watchdog_sync_ts, step6_extra_limits, step6_dashboard_tracker, step5_var_mapping, step5_formulas) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    (project_name, proj_type, test_type, run_mode, target_val, timestamp, tanks_str, layout_json, hardware_list_json, hardware_dfs_json, hardware_ds_json, step6_watchdogs_json, step6_limits_json, step6_event_log_json, watchdog_sync_ts, step6_extra_limits_json, step6_dashboard_tracker, step5_var_mapping_json, step5_formulas_json))
+                cur.execute("ALTER TABLE projects ADD COLUMN watchdog_sync_ts TEXT")
+            except Exception:
+                pass
 
-                # --- Delete old pump records for this project to prevent duplicates ---
-                cur.execute("DELETE FROM pumps WHERE project_id = ?", (project_name,))
+            cur = conn.cursor()
+            cur.execute("INSERT OR REPLACE INTO projects (project_id, type, test_type, run_mode, target_val, created_at, tanks, layout, hardware_list, hardware_dfs, hardware_ds, step6_watchdogs, step6_limits, step6_event_log, watchdog_sync_ts, step6_extra_limits, step6_dashboard_tracker, step5_var_mapping, step5_formulas) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (project_name, proj_type, test_type, run_mode, target_val, timestamp, tanks_str, layout_json, hardware_list_json, hardware_dfs_json, step6_watchdogs_json, step6_limits_json, step6_event_log_json, watchdog_sync_ts, step6_extra_limits_json, step6_dashboard_tracker, step5_var_mapping_json, step5_formulas_json))
 
-                # Save Pumps Specs (Insulation only, no tank assignment, columns must match schema)
-                for _, row in st.session_state.specs_df.dropna(subset=["Pump ID"]).iterrows():
-                    p_id = row["Pump ID"]
-                    cur.execute("INSERT OR REPLACE INTO pumps (pump_id, project_id, `Pump Model`, `ISO No.`, HP, kW, `Voltage (V)`, `Amp Min`, `Amp Max`, Phase, Hertz, Insulation) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                        (
-                            p_id,
-                            project_name,
-                            row.get("Pump Model", ""),
-                            row.get("ISO No.", ""),
-                            str(row.get("HP", "")),
-                            str(row.get("kW", "")),
-                            row.get("Voltage (V)", ""),
-                            str(row.get("Amp Min", "")),
-                            str(row.get("Amp Max", "")),
-                            str(row.get("Phase", "")),
-                            str(row.get("Hertz", "")),
-                            row.get("Insulation", ""),
-                        ))
+            # --- Delete old pump records for this project to prevent duplicates ---
+            cur.execute("DELETE FROM pumps WHERE project_id = ?", (project_name,))
 
-                conn.commit()
-                cur.close()
-                conn.close()
+            # Save Pumps Specs (Insulation only, no tank assignment, columns must match schema)
+            for _, row in st.session_state.specs_df.dropna(subset=["Pump ID"]).iterrows():
+                p_id = row["Pump ID"]
+                cur.execute("INSERT OR REPLACE INTO pumps (pump_id, project_id, `Pump Model`, `ISO No.`, HP, kW, `Voltage (V)`, `Amp Min`, `Amp Max`, Phase, Hertz, Insulation) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        p_id,
+                        project_name,
+                        row.get("Pump Model", ""),
+                        row.get("ISO No.", ""),
+                        str(row.get("HP", "")),
+                        str(row.get("kW", "")),
+                        row.get("Voltage (V)", ""),
+                        str(row.get("Amp Min", "")),
+                        str(row.get("Amp Max", "")),
+                        str(row.get("Phase", "")),
+                        str(row.get("Hertz", "")),
+                        row.get("Insulation", ""),
+                    ))
+
+            conn.commit()
+            cur.close()
+            conn.close()
 
         # 2. Hardware Inventory Initialization
         if "hardware_list" not in st.session_state:

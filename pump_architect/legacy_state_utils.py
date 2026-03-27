@@ -64,14 +64,14 @@ def build_phase4_hardware_plan(pump_ids, status_grid):
     return temp_units, clamp_units
 
 
-def restore_project_formula_state(db_file, project_id):
+def restore_project_formula_state(project_id):
     default_var_mapping = pd.DataFrame(columns=["Variable", "Mapped Sensor"])
     default_formulas = pd.DataFrame(columns=["Formula Name", "Target", "Equation"])
 
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(
-        "SELECT step5_var_mapping, step5_formulas FROM projects WHERE project_id = ?",
+        "SELECT step5_var_mapping, step5_formulas FROM projects WHERE project_id = %s",
         (project_id,)
     )
     proj_row = cur.fetchone()
@@ -94,7 +94,7 @@ def restore_project_formula_state(db_file, project_id):
         st.session_state.formulas_df = default_formulas
 
 
-def restore_project_hardware_state(db_file, project_id):
+def restore_project_hardware_state(project_id):
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(

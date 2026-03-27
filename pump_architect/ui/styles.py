@@ -35,7 +35,7 @@ def inject_compact_css():
                 background: transparent !important;
             }
 
-            [data-testid="stMainBlockContainer"] {
+            [data-testid="stMainBlockContainer"], .block-container {
                 width: 100vw !important;
                 max-width: 100vw !important;
                 padding-top: 2rem !important;

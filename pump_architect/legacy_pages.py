@@ -22,7 +22,7 @@ def route_simple_pages(page, render_project_form, render_add_record_wizard, rend
     return False
 
 
-def render_home_page(db_file, handle_open_project, handle_modify_project):
+def render_home_page(handle_open_project, handle_modify_project):
     st.markdown(
         """
         <style>

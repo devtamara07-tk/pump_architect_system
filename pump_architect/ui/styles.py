@@ -36,8 +36,6 @@ def inject_compact_css():
             }
 
             .block-container, [data-testid="block-container"], [data-testid="stMainBlockContainer"] {
-                width: 100vw !important;
-                max-width: 100vw !important;
                 padding-top: 2rem !important;
                 padding-bottom: 2rem !important;
                 padding-left: 2rem !important;

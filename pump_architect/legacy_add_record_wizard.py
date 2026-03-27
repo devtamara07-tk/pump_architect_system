@@ -28,7 +28,7 @@ def render_add_record_wizard():
     project_id = st.session_state.get("current_project", "")
     if not project_id:
         st.error("No active project selected. Open a project dashboard first.")
-        if st.button("Back to Home", use_container_width=True):
+        if st.button("Back to Home", width="stretch"):
             st.session_state.page = "home"
             st.rerun()
         return
@@ -38,7 +38,7 @@ def render_add_record_wizard():
 
     back_col, _ = st.columns([1.2, 5.8])
     with back_col:
-        if st.button("Back to Dashboard", use_container_width=True):
+        if st.button("Back to Dashboard", width="stretch"):
             st.session_state.page = "dashboard"
             st.rerun()
 
@@ -228,7 +228,7 @@ def render_add_record_wizard():
             "Delta (hrs)": f"{tank_deltas.get(t, 0.0):.2f}",
         })
     if delta_rows:
-        st.dataframe(pd.DataFrame(delta_rows), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(delta_rows), width="stretch", hide_index=True)
 
     # Combine previous grids using all tanks so inactive-tank carry-forward
     # reflects each tank's latest known status.
@@ -263,14 +263,14 @@ def render_add_record_wizard():
         ).fillna(0).round(0).astype(int)
         st.dataframe(
             baseline_display_df,
-            use_container_width=True, hide_index=True,
+            width="stretch", hide_index=True,
         )
         edited_status_df = status_df.copy()
     else:
         edited_status_df = st.data_editor(
             status_df,
             hide_index=True,
-            use_container_width=True,
+            width="stretch",
             num_rows="fixed",
             key=status_editor_key,
             column_config={
@@ -294,7 +294,7 @@ def render_add_record_wizard():
 
     phase2_col, _ = st.columns([1.7, 4.3])
     with phase2_col:
-        if st.button("Confirm Status Grid & Time Distribution", use_container_width=True, type="primary", key="confirm_phase2"):
+        if st.button("Confirm Status Grid & Time Distribution", width="stretch", type="primary", key="confirm_phase2"):
             if not ts_valid:
                 st.error("Fix timestamp issues before confirming Phase 2.")
             else:
@@ -416,7 +416,7 @@ def render_add_record_wizard():
             temp_tables[hw_name] = st.data_editor(
                 pd.DataFrame(editor_rows),
                 hide_index=True,
-                use_container_width=True,
+                width="stretch",
                 num_rows="fixed",
                 key=f"phase4_temp_editor_{hw_name}",
                 column_order=["CH", "Sensor Name", "Reading (C)"],
@@ -481,7 +481,7 @@ def render_add_record_wizard():
             clamp_tables[hw_name] = st.data_editor(
                 pd.DataFrame(editor_rows),
                 hide_index=True,
-                use_container_width=True,
+                width="stretch",
                 num_rows="fixed",
                 key=f"phase4_clamp_editor_{hw_name}",
                 column_config={
@@ -536,7 +536,7 @@ def render_add_record_wizard():
 
     phase4_col, _ = st.columns([1.7, 4.3])
     with phase4_col:
-        if st.button("Confirm Targeted Polling", use_container_width=True, type="primary", key="confirm_phase4"):
+        if st.button("Confirm Targeted Polling", width="stretch", type="primary", key="confirm_phase4"):
             fallback_temp_values = {
                 pid: st.session_state.get(f"phase4_temp_fallback_{pid}")
                 for pid, _ in fallback_temp_pumps
@@ -608,11 +608,11 @@ def render_add_record_wizard():
     )
 
     review_df = pd.DataFrame(review_rows)
-    st.dataframe(review_df, use_container_width=True, hide_index=True)
+    st.dataframe(review_df, width="stretch", hide_index=True)
 
     with st.expander("Formula Debug Panel", expanded=False):
         st.markdown("<p style='color:white; font-size:13px;'>Resolved variables, selected rise formula, and evaluated Step 6 formula values used during Add Record review.</p>", unsafe_allow_html=True)
-        st.dataframe(pd.DataFrame(formula_debug_rows), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(formula_debug_rows), width="stretch", hide_index=True)
 
     alarm_ack = True
     if all_alarms:
@@ -625,7 +625,7 @@ def render_add_record_wizard():
     can_save = (alarm_ack if all_alarms else True)
     save_col, _ = st.columns([1.2, 4.8])
     with save_col:
-        if st.button("Save Record", use_container_width=True, type="primary", disabled=not can_save, key="save_record_button"):
+        if st.button("Save Record", width="stretch", type="primary", disabled=not can_save, key="save_record_button"):
             try:
                 saved_record_id = legacy_record_save_utils.save_project_record(
                     

@@ -55,7 +55,7 @@ def render_home():
         unsafe_allow_html=True,
     )
 
-    if st.button("Create New Project", type="primary", use_container_width=True):
+    if st.button("Create New Project", type="primary", width="stretch"):
         st.session_state.page = "create"
         st.rerun()
 

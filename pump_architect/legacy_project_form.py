@@ -45,7 +45,7 @@ def render_project_form():
 
     cancel_col, _ = st.columns([1.2, 6])
     with cancel_col:
-        if st.button("Cancel & Return", use_container_width=True):
+        if st.button("Cancel & Return", width="stretch"):
             st.session_state.page = "home"; st.rerun()
 
     # STEP 1: TEST DEFINITION ---
@@ -105,7 +105,7 @@ def render_project_form():
         st.write("")
         next_col, _ = st.columns([1.15, 5.85])
         with next_col:
-            if st.button("Next Step", type="primary", use_container_width=True):
+            if st.button("Next Step", type="primary", width="stretch"):
                 if target_value_valid:
                     st.session_state.wizard_step = 2
                     st.rerun()
@@ -144,14 +144,14 @@ def render_project_form():
             updated_df = st.data_editor(
                 st.session_state.specs_df[required_cols],
                 num_rows="dynamic",
-                use_container_width=True,
+                width="stretch",
                 hide_index=True,
                 column_config=step2_config,
                 key="pump_editor_form_mode"
             )
 
             # The "Enter" clause - This processes everything at once
-            submitted = st.form_submit_button("Confirm Table Entries", use_container_width=True, type="primary")
+            submitted = st.form_submit_button("Confirm Table Entries", width="stretch", type="primary")
 
             if submitted:
                 # Defensive: Check if 'Pump Model' column exists after editing
@@ -168,11 +168,11 @@ def render_project_form():
         st.write("")
         b1, b2, _ = st.columns([1.1, 1.1, 3.8])
         with b1:
-            if st.button("Back", use_container_width=True):
+            if st.button("Back", width="stretch"):
                 st.session_state.wizard_step = 1
                 st.rerun()
         with b2:
-            if st.button("Next", use_container_width=True, type="primary"):
+            if st.button("Next", width="stretch", type="primary"):
                 # Check if they confirmed the table first
                 if not st.session_state.specs_df.empty:
                     st.session_state.wizard_step = 3
@@ -192,7 +192,7 @@ def render_project_form():
         _, col_t2, col_t3 = st.columns([3.5, 1.1, 1.2])
 
         with col_t2:
-            if st.button("Add Tank", use_container_width=True, type="primary", key="add_tank_btn"):
+            if st.button("Add Tank", width="stretch", type="primary", key="add_tank_btn"):
                 new_tank_num = len(st.session_state.water_tanks) + 1
                 st.session_state.water_tanks.append(f"Water Tank {new_tank_num}")
                 st.rerun()
@@ -200,7 +200,7 @@ def render_project_form():
         with col_t3:
             # We disable the delete button if there is only 1 tank left
             disable_delete = len(st.session_state.water_tanks) <= 1
-            if st.button("Remove Last Tank", use_container_width=True, disabled=disable_delete, key="remove_tank_btn"):
+            if st.button("Remove Last Tank", width="stretch", disabled=disable_delete, key="remove_tank_btn"):
                 removed_tank = st.session_state.water_tanks.pop()
 
                 # SAFETY CHECK: Reassign orphaned pumps back to Tank 1
@@ -274,13 +274,13 @@ def render_project_form():
 
             updated_layout = st.data_editor(
                 st.session_state.layout_df,
-                use_container_width=True,
+                width="stretch",
                 hide_index=True,
                 column_config=layout_config,
                 key="layout_master_editor"
             )
 
-            confirm = st.form_submit_button("Confirm Layout Changes", use_container_width=True, type="primary")
+            confirm = st.form_submit_button("Confirm Layout Changes", width="stretch", type="primary")
             if confirm:
                 st.session_state.layout_df = updated_layout.reset_index(drop=True)
                 legacy_ui_event_utils.queue_confirmation("Layout mappings saved.")
@@ -290,11 +290,11 @@ def render_project_form():
         st.write("")
         b1, b2, _ = st.columns([1.1, 1.1, 3.8])
         with b1:
-            if st.button("Back", use_container_width=True, key="back_step3"):
+            if st.button("Back", width="stretch", key="back_step3"):
                 st.session_state.wizard_step = 2
                 st.rerun()
         with b2:
-            if st.button("Next", use_container_width=True, type="primary", key="next_step3"):
+            if st.button("Next", width="stretch", type="primary", key="next_step3"):
                 if "updated_layout" in locals():
                     st.session_state.layout_df = updated_layout.reset_index(drop=True)
                 st.session_state.wizard_step = 4
@@ -392,28 +392,28 @@ def render_project_form():
         col1, col2, col3, col4, col5 = st.columns(5)
 
         with col1:
-            if st.button("HIOKI Temp", use_container_width=True, type="primary", key="add_htemp"):
+            if st.button("HIOKI Temp", width="stretch", type="primary", key="add_htemp"):
                 count = sum(1 for hw in st.session_state.hardware_list if "HIOKI Temp" in hw)
                 st.session_state.hardware_list.append(f"HIOKI Temp {count + 1}")
                 st.rerun()
         with col2:
-            if st.button("HIOKI Power", use_container_width=True, type="primary", key="add_hpower"):
+            if st.button("HIOKI Power", width="stretch", type="primary", key="add_hpower"):
                 count = sum(1 for hw in st.session_state.hardware_list if "HIOKI Power" in hw)
                 st.session_state.hardware_list.append(f"HIOKI Power {count + 1}")
                 st.rerun()
         with col3:
-            if st.button("HIOKI Clamp", use_container_width=True, type="primary", key="add_hclamp"):
+            if st.button("HIOKI Clamp", width="stretch", type="primary", key="add_hclamp"):
                 count = sum(1 for hw in st.session_state.hardware_list if "HIOKI Clamp" in hw)
                 st.session_state.hardware_list.append(f"HIOKI Clamp {count + 1}")
                 st.rerun()
         with col4:
-            if st.button("General HW", use_container_width=True, type="primary", key="add_gen"):
+            if st.button("General HW", width="stretch", type="primary", key="add_gen"):
                 count = sum(1 for hw in st.session_state.hardware_list if "General HW" in hw)
                 st.session_state.hardware_list.append(f"General HW {count + 1}")
                 st.rerun()
         with col5:
             disable_del = len(st.session_state.hardware_list) == 0
-            if st.button("🗑️ Remove Last", use_container_width=True, disabled=disable_del, key="del_hw"):
+            if st.button("🗑️ Remove Last", width="stretch", disabled=disable_del, key="del_hw"):
                 removed_hw = st.session_state.hardware_list.pop()
                 if f"df_{removed_hw}" in st.session_state:
                     del st.session_state[f"df_{removed_hw}"]
@@ -472,7 +472,7 @@ def render_project_form():
                             st.session_state[df_key] = pd.DataFrame([{"CH": f"CH{i}", "Sensor Name": "", "Assigned To": "None (Unused)", "Measurement Type": "Exact"} for i in range(1, 11)])
 
                         config = {"CH": st.column_config.TextColumn("Channel", disabled=True), "Sensor Name": st.column_config.TextColumn("Sensor Name"), "Assigned To": st.column_config.SelectboxColumn("Assigned To", options=assignment_options), "Measurement Type": st.column_config.SelectboxColumn("Measurement Type", options=["Exact", "Max Temp", "Average"])}
-                        updated_dfs[df_key] = st.data_editor(st.session_state[df_key], use_container_width=True, hide_index=True, column_config=config, key=f"edit_{hw_name}")
+                        updated_dfs[df_key] = st.data_editor(st.session_state[df_key], width="stretch", hide_index=True, column_config=config, key=f"edit_{hw_name}")
 
                     # --- B. HIOKI POWER METER ---
                     elif "HIOKI Power" in hw_name:
@@ -480,7 +480,7 @@ def render_project_form():
                             st.session_state[df_key] = pd.DataFrame([{"Terminal": t, "Assigned To": "None (Unused)"} for t in ["U1", "V1", "W1", "A1", "A2", "A3"]])
 
                         config = {"Terminal": st.column_config.TextColumn("Terminal", disabled=True), "Assigned To": st.column_config.SelectboxColumn("Assigned To", options=assignment_options)}
-                        updated_dfs[df_key] = st.data_editor(st.session_state[df_key], use_container_width=True, hide_index=True, column_config=config, key=f"edit_{hw_name}")
+                        updated_dfs[df_key] = st.data_editor(st.session_state[df_key], width="stretch", hide_index=True, column_config=config, key=f"edit_{hw_name}")
 
                     # --- C. HIOKI CLAMP METER ---
                     elif "HIOKI Clamp" in hw_name:
@@ -492,7 +492,7 @@ def render_project_form():
                             "Sensor Name": st.column_config.TextColumn("Sensor Name", required=True),
                             "Read Status": st.column_config.SelectboxColumn("Read Status", options=["On (Yes Read)", "Off (No Read)"])
                         }
-                        updated_dfs[df_key] = st.data_editor(st.session_state[df_key], use_container_width=True, hide_index=True, column_config=config, key=f"edit_{hw_name}")
+                        updated_dfs[df_key] = st.data_editor(st.session_state[df_key], width="stretch", hide_index=True, column_config=config, key=f"edit_{hw_name}")
 
                     # --- D. GENERAL HARDWARE ---
                     elif "General HW" in hw_name:
@@ -500,7 +500,7 @@ def render_project_form():
                             st.session_state[df_key] = pd.DataFrame([{"Sensor Name": "", "Parameter": "Counter", "Assigned To": "None (Unused)"}])
 
                         config = {"Sensor Name": st.column_config.TextColumn("Sensor Name", required=True), "Parameter": st.column_config.SelectboxColumn("Parameter", options=["Counter", "Temperature", "Voltage", "Current", "Flow", "Other"]), "Assigned To": st.column_config.SelectboxColumn("Assigned To", options=assignment_options)}
-                        updated_dfs[df_key] = st.data_editor(st.session_state[df_key], num_rows="dynamic", use_container_width=True, hide_index=True, column_config=config, key=f"edit_{hw_name}")
+                        updated_dfs[df_key] = st.data_editor(st.session_state[df_key], num_rows="dynamic", width="stretch", hide_index=True, column_config=config, key=f"edit_{hw_name}")
 
                     # --- MULTISELECT FOR ENTRY METHODS (No HTML Box around it) ---
                     st.write("")  # Just a small space for visual padding
@@ -512,7 +512,7 @@ def render_project_form():
                     )
                     st.divider()
 
-                confirm = st.form_submit_button("Confirm Hardware Setup", use_container_width=True, type="primary")
+                confirm = st.form_submit_button("Confirm Hardware Setup", width="stretch", type="primary")
                 if confirm:
                     for key, edited_df in updated_dfs.items():
                         st.session_state[key] = edited_df
@@ -525,11 +525,11 @@ def render_project_form():
         st.write("")
         b1, b2, _ = st.columns([1.1, 1.1, 3.8])
         with b1:
-            if st.button("Back", use_container_width=True, key="back_step4"):
+            if st.button("Back", width="stretch", key="back_step4"):
                 st.session_state.wizard_step = 3
                 st.rerun()
         with b2:
-            if st.button("Next", use_container_width=True, type="primary", key="next_step4"):
+            if st.button("Next", width="stretch", type="primary", key="next_step4"):
                 if 'updated_dfs' in locals():
                     for key, edited_df in updated_dfs.items():
                         st.session_state[key] = edited_df
@@ -607,7 +607,7 @@ def render_project_form():
             updated_vars = st.data_editor(
                 st.session_state.var_mapping_df,
                 num_rows="dynamic",
-                use_container_width=True,
+                width="stretch",
                 hide_index=True,
                 column_config=var_config,
                 key="edit_vars_stable"
@@ -636,7 +636,7 @@ def render_project_form():
             )
 
             st.write("")
-            confirm = st.form_submit_button("Confirm Formulas", use_container_width=True, type="primary")
+            confirm = st.form_submit_button("Confirm Formulas", width="stretch", type="primary")
             if confirm:
                 st.session_state.var_mapping_df = updated_vars.reset_index(drop=True)
                 st.session_state.formulas_df = updated_forms.reset_index(drop=True)
@@ -647,11 +647,11 @@ def render_project_form():
         st.write("")
         b1, b2, _ = st.columns([1.1, 1.1, 3.8])
         with b1:
-            if st.button("Back", use_container_width=True, key="back_step5"):
+            if st.button("Back", width="stretch", key="back_step5"):
                 st.session_state.wizard_step = 4
                 st.rerun()
         with b2:
-            if st.button("Next", use_container_width=True, type="primary", key="next_step5"):
+            if st.button("Next", width="stretch", type="primary", key="next_step5"):
                 if 'updated_vars' in locals():
                     st.session_state.var_mapping_df = updated_vars.reset_index(drop=True)
                     st.session_state.formulas_df = updated_forms.reset_index(drop=True)
@@ -757,13 +757,13 @@ def render_project_form():
             edited_wd_matrix = st.data_editor(
                 wd_matrix_df,
                 hide_index=True,
-                use_container_width=True,
+                width="stretch",
                 column_config=wd_config,
                 key="watchdogs_matrix_edit",
                 num_rows="fixed"
             )
 
-            save_watchdogs = st.form_submit_button("Confirm Watchdog Setup", use_container_width=True, type="primary")
+            save_watchdogs = st.form_submit_button("Confirm Watchdog Setup", width="stretch", type="primary")
             if save_watchdogs:
                 st.session_state.watchdog_matrix_df = edited_wd_matrix.reset_index(drop=True)
                 expanded = []

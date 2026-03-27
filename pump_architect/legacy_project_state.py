@@ -66,14 +66,14 @@ def init_db(db_file):
                     return f'"{name}"'
             return "''"
 
-        c.execute(
-            """
-            INSERT INTO pumps (
-                pump_id, project_id, "Pump Model", "ISO No.", HP, kW,
-                "Voltage (V)", "Amp Min", "Amp Max", Phase, Hertz, Insulation
-            )
-            SELECT
-                {pump_id},
+        cur.execute(
+            "SELECT project_id, type, test_type, run_mode, target_val, tanks, "
+            "step6_watchdogs, step6_limits, step6_event_log, watchdog_sync_ts, "
+            "step6_extra_limits, layout, step6_dashboard_tracker, "
+            "step5_var_mapping, step5_formulas "
+            "FROM projects WHERE project_id = %s",
+            (project_id,),
+        )
                 {project_id},
                 {pump_model},
                 {iso_no},

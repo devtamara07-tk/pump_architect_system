@@ -37,7 +37,7 @@ def render_add_maintenance_wizard(
         rows = cur.fetchall()
         st.session_state.active_pumps_df = pd.DataFrame(rows, columns=[desc[0] for desc in cur.description])
         cur.close()
-        conn.close()
+        # conn.close()  # Removed: do not close cached connection
 
     pumps_df = st.session_state.get("active_pumps_df", pd.DataFrame())
     pump_ids = []
@@ -121,7 +121,7 @@ def render_add_maintenance_wizard(
             )
             conn.commit()
             cur.close()
-            conn.close()
+            # conn.close()  # Removed: do not close cached connection
 
             add_event_log_entry_fn(f"Maintenance logged ({event_type}, {severity}) for pump(s): {', '.join(affected_pumps)}.")
             persist_event_log_for_project_fn(project_id)
@@ -188,7 +188,7 @@ def render_add_maintenance_wizard(
                     cur.execute("UPDATE maintenance_events SET maintenance_status = %s WHERE id = %s", (new_status, selected_id))
                     conn.commit()
                     cur.close()
-                    conn.close()
+                    # conn.close()  # Removed: do not close cached connection
                     add_event_log_entry_fn(f"Maintenance event #{selected_id} status updated to {new_status}.")
                     persist_event_log_for_project_fn(project_id)
                     queue_confirmation_fn("Maintenance status updated.")

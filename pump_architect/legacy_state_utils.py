@@ -76,7 +76,7 @@ def restore_project_formula_state(project_id):
     )
     proj_row = cur.fetchone()
     cur.close()
-    conn.close()
+    # conn.close()  # Removed: do not close cached connection
 
     if not proj_row:
         st.session_state.var_mapping_df = default_var_mapping
@@ -103,7 +103,7 @@ def restore_project_hardware_state(project_id):
     )
     proj_row = cur.fetchone()
     cur.close()
-    conn.close()
+    # conn.close()  # Removed: do not close cached connection
 
     if not proj_row:
         st.session_state.hardware_list = []

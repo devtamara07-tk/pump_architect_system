@@ -30,7 +30,7 @@ def alter_projects_table():
             print(f"Error executing '{stmt}': {e}")
     conn.commit()
     cur.close()
-    conn.close()
+    # conn.close()  # Removed: do not close cached connection
 
 if __name__ == "__main__":
     alter_projects_table()

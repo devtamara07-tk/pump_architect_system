@@ -124,7 +124,7 @@ def test_init_db(isolated_db):
             "SELECT name FROM sqlite_master WHERE type='table'"
         ).fetchall()
     }
-    conn.close()
+    # conn.close()  # Removed: do not close cached connection
 
     expected_tables = {
         "projects",
@@ -207,7 +207,7 @@ def test_delete_project(isolated_db):
     pump_rows = conn.execute(
         "SELECT * FROM pumps WHERE project_id=?", ("Centrifugal_Run Test",)
     ).fetchall()
-    conn.close()
+    # conn.close()  # Removed: do not close cached connection
     assert len(pump_rows) == 0
 
 

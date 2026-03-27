@@ -17,7 +17,7 @@ def get_project_records(db_file, project_id):
         """,
         (project_id,),
     ).fetchall()
-    conn.close()
+    # conn.close()  # Removed: do not close cached connection
     cols = [
         "id", "project_id", "record_phase", "record_ts", "method", "ambient_temp",
         "tank_temps_json", "status_grid_json", "pump_readings_json", "alarms_json",
@@ -52,7 +52,7 @@ def has_baseline_record(db_file, project_id):
         "SELECT COUNT(*) FROM project_records WHERE project_id = %s AND record_phase = %s",
         (project_id, "Baseline Calibration (Cold State)"),
     ).fetchone()
-    conn.close()
+    # conn.close()  # Removed: do not close cached connection
     return bool(row and row[0] > 0)
 
 
@@ -76,7 +76,7 @@ def clear_project_records(db_file, project_id):
     )
 
     conn.commit()
-    conn.close()
+    # conn.close()  # Removed: do not close cached connection
     return deleted_rows
 
 
@@ -86,7 +86,7 @@ def clear_project_maintenance_events(db_file, project_id):
     cursor.execute("DELETE FROM maintenance_events WHERE project_id = %s", (project_id,))
     deleted_rows = cursor.rowcount if cursor.rowcount is not None else 0
     conn.commit()
-    conn.close()
+    # conn.close()  # Removed: do not close cached connection
     return deleted_rows
 
 
@@ -102,7 +102,7 @@ def get_maintenance_events(db_file, project_id):
         """,
         (project_id,),
     ).fetchall()
-    conn.close()
+    # conn.close()  # Removed: do not close cached connection
     cols = [
         "id", "project_id", "event_ts", "affected_pumps_json", "event_type", "severity",
         "maintenance_status", "action_taken", "notes", "source_record_id", "created_at"
@@ -125,7 +125,7 @@ def get_tank_start_dates(db_file, project_id):
         (project_id,),
     ).fetchone()
     if not row:
-        conn.close()
+        # conn.close()  # Removed: do not close cached connection
         return {}
 
     tanks_str, tsd_json, created_at = row
@@ -155,7 +155,7 @@ def get_tank_start_dates(db_file, project_id):
             conn.commit()
         cur.close()
 
-    conn.close()
+    # conn.close()  # Removed: do not close cached connection
     return result
 
 
@@ -167,7 +167,7 @@ def save_tank_start_dates(db_file, project_id, tank_start_dates_dict):
         (json.dumps(tank_start_dates_dict), project_id),
     )
     conn.commit()
-    conn.close()
+    # conn.close()  # Removed: do not close cached connection
 
 
 def get_latest_record_for_tank(db_file, project_id, tank_name):
@@ -188,7 +188,7 @@ def get_latest_record_for_tank(db_file, project_id, tank_name):
         """,
         (project_id,),
     ).fetchall()
-    conn.close()
+    # conn.close()  # Removed: do not close cached connection
 
     col_names = [
         "id", "project_id", "record_phase", "record_ts", "method", "ambient_temp",
@@ -218,7 +218,7 @@ def has_baseline_record_for_tank(db_file, project_id, tank_name):
         """,
         (project_id, "Baseline Calibration (Cold State)"),
     ).fetchall()
-    conn.close()
+    # conn.close()  # Removed: do not close cached connection
     for (active_tanks,) in rows:
         if active_tanks == "ALL" or tank_name in active_tanks.split("||"):
             return True

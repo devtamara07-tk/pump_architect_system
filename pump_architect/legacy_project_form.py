@@ -385,7 +385,7 @@ def render_project_form():
 
             conn.commit()
             cur.close()
-            conn.close()
+            # conn.close()  # Removed: do not close cached connection
 
         # 2. Hardware Inventory Initialization
         if "hardware_list" not in st.session_state:
@@ -1221,4 +1221,4 @@ def render_project_form():
             except Exception as e:
                 st.error(f"Database Error: {e}")
             finally:
-                conn.close()
+                # conn.close()  # Removed: do not close cached connection

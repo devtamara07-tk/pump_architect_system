@@ -36,7 +36,7 @@ def ensure_active_pumps_df(db_file, project_id):
     if "active_pumps_df" not in st.session_state or st.session_state.active_pumps_df.empty:
         conn = get_connection()
         st.session_state.active_pumps_df = pd.read_sql_query("SELECT * FROM pumps WHERE project_id = %s", conn, params=(project_id,))
-        conn.close()
+        # conn.close()  # Removed: do not close cached connection
     return st.session_state.get("active_pumps_df", pd.DataFrame())
 
 
@@ -68,7 +68,7 @@ def load_layout_and_pump_tank_lookup(db_file, project_id):
         cur.execute("SELECT layout, tanks FROM projects WHERE project_id = %s", (project_id,))
         row = cur.fetchone()
         cur.close()
-        conn.close()
+        # conn.close()  # Removed: do not close cached connection
         if row and row[0]:
             try:
                 st.session_state.layout_df = pd.read_json(row[0])

@@ -193,7 +193,7 @@ def insert_record(
             "pumps": {pid: {"temp": r["temp"], "acc": global_grid[pid]["acc_hours"]} for pid, r in pump_readings.items()},
         }
     finally:
-        conn.close()
+        # conn.close()  # Removed: do not close cached connection
 
 
 def main():

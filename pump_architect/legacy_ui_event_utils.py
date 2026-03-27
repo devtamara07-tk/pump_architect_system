@@ -166,7 +166,7 @@ def persist_event_log_for_project(db_file, project_id):
         )
         conn.commit()
         cur.close()
-        conn.close()
+        # conn.close()  # Removed: do not close cached connection
     except Exception:
         pass
 
@@ -205,7 +205,7 @@ def add_event_log_entry(text):
         cur.execute("UPDATE maintenance_events SET maintenance_status = %s WHERE id = %s", ("Closed", event_id))
     conn.commit()
     cur.close()
-    conn.close()
+    # conn.close()  # Removed: do not close cached connection
     return to_close_ids
 
 

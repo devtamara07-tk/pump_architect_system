@@ -46,7 +46,7 @@ def save_project_record(
     saved_record_id = c.lastrowid
     conn.commit()
     cur.close()
-    conn.close()
+    # conn.close()  # Removed: do not close cached connection
     return saved_record_id
 
 

@@ -128,7 +128,7 @@ def render_home_page(handle_open_project, handle_modify_project):
                     cur.execute(f"DELETE FROM pumps WHERE {actual_col}=%s", (p[0],))
 
                 conn.commit()
-                conn.close()
+                # conn.close()  # Removed: do not close cached connection
                 del st.session_state[confirm_key]
                 st.rerun()
         else:

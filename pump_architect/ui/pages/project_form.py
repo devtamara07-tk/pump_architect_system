@@ -81,7 +81,7 @@ def render_project_form(edit_id=None):
 
             st.session_state.edit_loaded = True
     finally:
-        conn.close()
+        # conn.close()  # Removed: do not close cached connection
 
     col1, col2 = st.columns([1.5, 2.5])
     with col1:

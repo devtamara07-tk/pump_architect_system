@@ -516,7 +516,7 @@ def run_import(
             conn.commit()
 
     finally:
-        conn.close()
+        # conn.close()  # Removed: do not close cached connection
 
     return stats, warnings
 

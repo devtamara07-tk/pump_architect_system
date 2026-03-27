@@ -13,7 +13,7 @@ def render_dashboard(project_name):
     proj_type = pd.read_sql(
         "SELECT type FROM projects WHERE project_id=?", conn, params=(project_name,)
     ).iloc[0]['type']
-    conn.close()
+    # conn.close()  # Removed: do not close cached connection
 
     tank_count = pumps_df['tank_name'].nunique() if not pumps_df.empty else 0
     pump_count = len(pumps_df.index)

@@ -78,12 +78,16 @@ def render_dashboard_page(
     # 2. Fetch REAL Database Info for this Project
     project_name = st.session_state.get('current_project', 'UNKNOWN PROJECT')
 
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT run_mode, target_val, test_type FROM projects WHERE project_id = %s", (project_name,))
-    proj_row = cur.fetchone()
-    cur.close()
-    conn.close()
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT run_mode, target_val, test_type FROM projects WHERE project_id = %s", (project_name,))
+        proj_row = cur.fetchone()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        st.error(f"[Postgres] Could not connect to database: {e}")
+        proj_row = None
 
     # Extract data or default if missing
     run_mode = proj_row[0] if proj_row and proj_row[0] else "Continuous"

@@ -1,3 +1,8 @@
+# Environment and secrets
+.env
+*.env
+secrets.env
+secrets/
 # Runtime database – created automatically by the app on first run
 architect_system.db
 *.db

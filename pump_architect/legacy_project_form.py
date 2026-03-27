@@ -50,6 +50,7 @@ def render_project_form():
 
     # STEP 1: TEST DEFINITION ---
     # --- STEP 1: TEST DEFINITION ---
+    assignment_options = []  # Defensive: always defined
     if step == 1:
         st.markdown("<div class='step-title'>1. Test Definition</div>", unsafe_allow_html=True)
 
@@ -302,6 +303,9 @@ def render_project_form():
 
     # STEP 4: Hardware & Sensor Mapping
     elif step == 4:
+        # Defensive: ensure assignment_options is always a list
+        if 'assignment_options' not in locals():
+            assignment_options = []
         st.markdown("<div class='step-title'>4. Hardware & Sensor Mapping</div>", unsafe_allow_html=True)
 
         # --- FORCE REHYDRATE HARDWARE STATE IF RESTORING ---

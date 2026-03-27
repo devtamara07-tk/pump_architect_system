@@ -26,7 +26,7 @@ def render_phase1(draft, baseline_exists, queue_confirmation_fn, activating_tank
             "hours will start from this record's timestamp."
         )
 
-    if st.button("Confirm Record Phase", use_container_width=True, key="confirm_record_phase"):
+    if st.button("Confirm Record Phase", width="stretch", key="confirm_record_phase"):
         if can_continue_phase1:
             draft["phase1_confirmed"] = True
             draft["phase2_confirmed"] = False
@@ -60,7 +60,7 @@ def render_phase3(draft, water_tanks, queue_confirmation_fn):
             key=tank_key,
         )
 
-    if st.button("Confirm Global Capture", use_container_width=True, key="confirm_phase3"):
+    if st.button("Confirm Global Capture", width="stretch", key="confirm_phase3"):
         draft["method"] = method
         draft["ambient_temp"] = float(ambient_temp)
         draft["tank_temps"] = tank_temps

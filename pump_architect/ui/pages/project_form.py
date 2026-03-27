@@ -122,7 +122,7 @@ def render_project_form(edit_id=None):
     edited_df = st.data_editor(
         st.session_state.specs_df,
         num_rows="dynamic",
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         column_config=_get_column_config(),
         key="create_table",
@@ -158,7 +158,7 @@ def render_project_form(edit_id=None):
 
         col_btn, _ = st.columns([1, 4])
         with col_btn:
-            if st.button("Add Water Tank", use_container_width=True):
+            if st.button("Add Water Tank", width="stretch"):
                 next_num = len(st.session_state.tanks) + 1
                 new_tank_name = f"Water Tank {next_num}"
                 while new_tank_name in st.session_state.tanks:
@@ -199,7 +199,7 @@ def render_project_form(edit_id=None):
         st.write("")
         col_save, _ = st.columns([1, 4])
         with col_save:
-            if st.button("Save Project", type="primary", use_container_width=True):
+            if st.button("Save Project", type="primary", width="stretch"):
                 try:
                     save_project(project_name, p_type, t_type, edited_df, st.session_state.tanks, edit_id=edit_id)
                     st.success("Project Saved!")

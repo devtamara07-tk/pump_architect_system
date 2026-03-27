@@ -629,7 +629,7 @@ def render_project_form():
             updated_forms = st.data_editor(
                 st.session_state.formulas_df,
                 num_rows="dynamic",
-                use_container_width=True,
+                width="stretch",
                 hide_index=True,
                 column_config=form_config,
                 key="edit_formulas_stable"
@@ -861,7 +861,7 @@ def render_project_form():
             edited_lim = st.data_editor(
                 lim_df,
                 hide_index=True,
-                use_container_width=True,
+                width="stretch",
                 column_config=base_lim_config,
                 key="limits_base_edit",
                 num_rows="fixed"
@@ -880,13 +880,13 @@ def render_project_form():
             edited_extra_lim = st.data_editor(
                 extra_lim_df,
                 hide_index=True,
-                use_container_width=True,
+                width="stretch",
                 column_config=extra_lim_config,
                 key="limits_extra_edit",
                 num_rows="dynamic"
             )
 
-            save_limits = st.form_submit_button("Confirm Safety Limits", use_container_width=True, type="primary")
+            save_limits = st.form_submit_button("Confirm Safety Limits", width="stretch", type="primary")
             if save_limits:
                 st.session_state.limits_df = edited_lim.reset_index(drop=True)
                 st.session_state.extra_limits_df = edited_extra_lim.reset_index(drop=True)
@@ -1070,7 +1070,7 @@ def render_project_form():
         else:
             st.warning("No tank or pump layout found. Please complete previous steps.")
 
-        if st.button("Confirm Dashboard Visual Layout Preview", use_container_width=True, type="primary", key="confirm_dashboard_preview"):
+        if st.button("Confirm Dashboard Visual Layout Preview", width="stretch", type="primary", key="confirm_dashboard_preview"):
             legacy_ui_event_utils.queue_confirmation("Dashboard visual layout preview confirmed.")
             st.rerun()
 
@@ -1082,7 +1082,7 @@ def render_project_form():
         if c1.button("Back", key="back_s6"):
             st.session_state.wizard_step = 5
             st.rerun()
-        if c2.button("Finish & Save Project", type="primary", use_container_width=True, key="finish_btn"):
+        if c2.button("Finish & Save Project", type="primary", width="stretch", key="finish_btn"):
             proj_type = st.session_state.get("proj_type", "Project")
             test_type = st.session_state.get("test_type", "Test")
 

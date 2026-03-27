@@ -331,13 +331,13 @@ def render_dashboard_page(
         # --- ACTION BUTTONS (Icons Removed) ---
         action_col1, action_col2, action_col3 = st.columns(3)
         with action_col1:
-            if st.button("Add New Record", use_container_width=True, type="primary", key="btn_add_record"):
+            if st.button("Add New Record", width="stretch", type="primary", key="btn_add_record"):
                 st.session_state.page = "add_record"
                 st.session_state.add_record_draft = {}
                 st.rerun()
 
         with action_col2:
-            if st.button("Add New Maintenance", use_container_width=True, key="btn_add_maint"):
+            if st.button("Add New Maintenance", width="stretch", key="btn_add_maint"):
                 st.session_state.maintenance_prefill_pumps = []
                 st.session_state.maintenance_source_record_id = None
                 st.session_state.page = "add_maintenance"
@@ -351,7 +351,7 @@ def render_dashboard_page(
                 data=report_csv,
                 file_name=f"{project_name}_dashboard_report_{report_name_ts}.csv",
                 mime="text/csv",
-                use_container_width=True,
+                width="stretch",
                 key="btn_print_report",
             )
         if report_clicked:
@@ -368,11 +368,11 @@ def render_dashboard_page(
             st.warning("Delete run test inputs is permanent. Project setup remains intact.")
             rec_cancel_col, rec_confirm_col, _ = st.columns([1.3, 1.7, 3.0])
             with rec_cancel_col:
-                if st.button("Cancel Delete Run Test Inputs", use_container_width=True, key="btn_clear_records_cancel"):
+                if st.button("Cancel Delete Run Test Inputs", width="stretch", key="btn_clear_records_cancel"):
                     st.session_state.pop(debug_confirm_key, None)
                     st.rerun()
             with rec_confirm_col:
-                if st.button("DANGER Confirm Delete Run Test Inputs", use_container_width=True, type="primary", key="btn_clear_records_confirm"):
+                if st.button("DANGER Confirm Delete Run Test Inputs", width="stretch", type="primary", key="btn_clear_records_confirm"):
                     deleted_rows = clear_project_records(project_name)
                     st.session_state.add_record_draft = {}
                     st.session_state.maintenance_prefill_pumps = []
@@ -386,7 +386,7 @@ def render_dashboard_page(
         else:
             _danger_col, _ = st.columns([2, 4])
             with _danger_col:
-                if st.button("DANGER Begin Delete Run Test Inputs", use_container_width=True, key="btn_clear_records"):
+                if st.button("DANGER Begin Delete Run Test Inputs", width="stretch", key="btn_clear_records"):
                     st.session_state[debug_confirm_key] = True
                     st.rerun()
 
@@ -400,11 +400,11 @@ def render_dashboard_page(
             st.warning("Delete maintenance inputs is permanent. Project setup remains intact.")
             maint_cancel_col, maint_confirm_col, _ = st.columns([1.3, 1.7, 3.0])
             with maint_cancel_col:
-                if st.button("Cancel Delete Maintenance Inputs", use_container_width=True, key="btn_clear_maintenance_cancel"):
+                if st.button("Cancel Delete Maintenance Inputs", width="stretch", key="btn_clear_maintenance_cancel"):
                     st.session_state.pop(maint_debug_confirm_key, None)
                     st.rerun()
             with maint_confirm_col:
-                if st.button("DANGER Confirm Delete Maintenance Inputs", use_container_width=True, type="primary", key="btn_clear_maintenance_confirm"):
+                if st.button("DANGER Confirm Delete Maintenance Inputs", width="stretch", type="primary", key="btn_clear_maintenance_confirm"):
                     deleted_rows = clear_project_maintenance_events(project_name)
                     st.session_state.maintenance_prefill_pumps = []
                     st.session_state.maintenance_source_record_id = None
@@ -414,14 +414,14 @@ def render_dashboard_page(
         else:
             _maint_danger_col, _ = st.columns([2, 4])
             with _maint_danger_col:
-                if st.button("DANGER Begin Delete Maintenance Inputs", use_container_width=True, key="btn_clear_maintenance"):
+                if st.button("DANGER Begin Delete Maintenance Inputs", width="stretch", key="btn_clear_maintenance"):
                     st.session_state[maint_debug_confirm_key] = True
                     st.rerun()
     
         st.write("")
         _exit_col, _ = st.columns([1.2, 4.8])
         with _exit_col:
-            if st.button("Exit Dashboard", use_container_width=True):
+            if st.button("Exit Dashboard", width="stretch"):
                 st.session_state.page = "home"
                 st.rerun()
 

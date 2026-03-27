@@ -86,13 +86,13 @@ def render_post_save_navigation(draft):
             unsafe_allow_html=True,
         )
         c1, c2 = st.columns(2)
-        if c1.button("Yes, Log Maintenance", use_container_width=True, key="log_maintenance_yes"):
+        if c1.button("Yes, Log Maintenance", width="stretch", key="log_maintenance_yes"):
             st.session_state.maintenance_prefill_pumps = maintenance_candidates
             st.session_state.maintenance_source_record_id = draft.get("saved_record_id")
             st.session_state.page = "add_maintenance"
             st.session_state.add_record_draft = {}
             st.rerun()
-        if c2.button("No, Return to Dashboard", use_container_width=True, key="log_maintenance_no"):
+        if c2.button("No, Return to Dashboard", width="stretch", key="log_maintenance_no"):
             st.session_state.page = "dashboard"
             st.session_state.add_record_draft = {}
             st.rerun()

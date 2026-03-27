@@ -18,7 +18,7 @@ def render_add_maintenance_wizard(
     project_id = st.session_state.get("current_project", "")
     if not project_id:
         st.error("No active project selected. Open a project dashboard first.")
-        if st.button("Back to Home", use_container_width=True):
+        if st.button("Back to Home", width="stretch"):
             st.session_state.page = "home"
             st.rerun()
         return
@@ -26,7 +26,7 @@ def render_add_maintenance_wizard(
     st.markdown("<div class='step-title'>Add New Maintenance</div>", unsafe_allow_html=True)
     st.markdown(f"<p style='color:white; font-size:16px;'>Project: {project_id}</p>", unsafe_allow_html=True)
 
-    if st.button("Back to Dashboard", use_container_width=True):
+    if st.button("Back to Dashboard", width="stretch"):
         st.session_state.page = "dashboard"
         st.rerun()
 
@@ -96,7 +96,7 @@ def render_add_maintenance_wizard(
     if not affected_pumps:
         st.markdown("<p style='color:white;'>Select at least one pump to save maintenance.</p>", unsafe_allow_html=True)
 
-    if st.button("Save Maintenance Event", use_container_width=True, type="primary", disabled=not can_save):
+    if st.button("Save Maintenance Event", width="stretch", type="primary", disabled=not can_save):
         try:
             conn = get_connection()
             cur = conn.cursor()
@@ -157,7 +157,7 @@ def render_add_maintenance_wizard(
                 "Status": row.get("maintenance_status", "Open"),
                 "Action": row.get("action_taken", ""),
             })
-        st.dataframe(pd.DataFrame(preview_rows), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(preview_rows), width="stretch", hide_index=True)
 
         st.write("")
         st.markdown("<p class='col-header'>Update Maintenance Status</p>", unsafe_allow_html=True)
@@ -176,7 +176,7 @@ def render_add_maintenance_wizard(
 
             selected_label = st.selectbox("Select Maintenance Event", options=[x[0] for x in update_options], key="maintenance_update_select")
             new_status = st.selectbox("New Status", options=["Open", "In Progress", "Closed"], key="maintenance_update_status")
-            if st.button("Apply Status Update", use_container_width=True, type="primary", key="maintenance_update_apply"):
+            if st.button("Apply Status Update", width="stretch", type="primary", key="maintenance_update_apply"):
                 selected_id = None
                 for label, eid in update_options:
                     if label == selected_label:

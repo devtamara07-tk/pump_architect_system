@@ -102,20 +102,20 @@ def render_home_page(handle_open_project, handle_modify_project):
         date_str = str(p[3])[:10] if p[3] else "N/A"
         c[3].markdown(f"<div class='white-text'>{date_str}</div>", unsafe_allow_html=True)
 
-        if c[4].button("Open", key=f"o{idx}", use_container_width=True):
+        if c[4].button("Open", key=f"o{idx}", width="stretch"):
             handle_open_project(p[0])
 
-        if c[5].button("Modify", key=f"m{idx}", use_container_width=True):
+        if c[5].button("Modify", key=f"m{idx}", width="stretch"):
             handle_modify_project(p[0])
 
         confirm_key = f"delete_confirm_{idx}"
 
         if st.session_state.get(confirm_key, False):
-            if c[6].button("Cancel", key=f"can_{idx}", use_container_width=True):
+            if c[6].button("Cancel", key=f"can_{idx}", width="stretch"):
                 del st.session_state[confirm_key]
                 st.rerun()
 
-            if c[6].button("DANGER Confirm Delete Project", key=f"conf_{idx}", use_container_width=True, type="primary"):
+            if c[6].button("DANGER Confirm Delete Project", key=f"conf_{idx}", width="stretch", type="primary"):
                 conn = get_connection()
                 cur.execute("DELETE FROM projects WHERE project_id=%s", (p[0],))
 
@@ -132,7 +132,7 @@ def render_home_page(handle_open_project, handle_modify_project):
                 del st.session_state[confirm_key]
                 st.rerun()
         else:
-            if c[6].button("Delete Project", key=f"d{idx}", use_container_width=True):
+            if c[6].button("Delete Project", key=f"d{idx}", width="stretch"):
                 st.session_state[confirm_key] = True
                 st.rerun()
 

@@ -44,11 +44,11 @@ def render_add_record_wizard():
 
     draft = legacy_add_record_setup.initialize_add_record_draft()
 
-    pumps_df = legacy_add_record_setup.ensure_active_pumps_df(db_file, project_id)
+    pumps_df = legacy_add_record_setup.ensure_active_pumps_df(project_id)
     legacy_add_record_setup.ensure_hardware_and_formula_state(
         project_id,
-        lambda pid: legacy_state_utils.restore_project_hardware_state(db_file, pid),
-        lambda pid: legacy_state_utils.restore_project_formula_state(db_file, pid),
+        lambda pid: legacy_state_utils.restore_project_hardware_state(pid),
+        lambda pid: legacy_state_utils.restore_project_formula_state(pid),
     )
 
     if pumps_df.empty:
@@ -56,7 +56,7 @@ def render_add_record_wizard():
         return
 
     pump_ids = legacy_add_record_setup.build_pump_ids(pumps_df)
-    pump_tank_lookup = legacy_add_record_setup.load_layout_and_pump_tank_lookup(db_file, project_id)
+    pump_tank_lookup = legacy_add_record_setup.load_layout_and_pump_tank_lookup(project_id)
     water_tanks = st.session_state.get("water_tanks", [])
 
     # ── Phase 0: Select Active Tanks ─────────────────────────────────────────────
@@ -69,7 +69,7 @@ def render_add_record_wizard():
         unsafe_allow_html=True,
     )
 
-    tank_start_dates = legacy_db_utils.get_tank_start_dates(db_file, project_id)
+    tank_start_dates = legacy_db_utils.get_tank_start_dates(project_id)
     established_active = [t for t in water_tanks if tank_start_dates.get(t)]
     pending_activation = [
         t for t in draft.get("activating_tanks", []) if t in water_tanks and not tank_start_dates.get(t)
@@ -163,7 +163,7 @@ def render_add_record_wizard():
 
     # Phase 1 ── baseline check uses the active tanks
     baseline_exists_for_active = all(
-        legacy_db_utils.has_baseline_record_for_tank(db_file, project_id, t)
+        legacy_db_utils.has_baseline_record_for_tank(project_id, t)
         for t in included_established
     ) if included_established else False
 
@@ -195,7 +195,7 @@ def render_add_record_wizard():
 
     # Per-tank last records and deltas
     latest_records_by_tank = {
-        t: legacy_db_utils.get_latest_record_for_tank(db_file, project_id, t)
+        t: legacy_db_utils.get_latest_record_for_tank(project_id, t)
         for t in active_tanks_for_record
     }
     ts_valid, tank_deltas, time_error = legacy_phase2_utils.compute_per_tank_deltas(
@@ -233,7 +233,7 @@ def render_add_record_wizard():
     # Combine previous grids using all tanks so inactive-tank carry-forward
     # reflects each tank's latest known status.
     latest_records_by_all_tanks = {
-        t: legacy_db_utils.get_latest_record_for_tank(db_file, project_id, t)
+        t: legacy_db_utils.get_latest_record_for_tank(project_id, t)
         for t in water_tanks
     }
     previous_grid = {}
@@ -628,7 +628,7 @@ def render_add_record_wizard():
         if st.button("Save Record", use_container_width=True, type="primary", disabled=not can_save, key="save_record_button"):
             try:
                 saved_record_id = legacy_record_save_utils.save_project_record(
-                    db_file,
+                    
                     project_id,
                     draft,
                     all_alarms,
@@ -638,11 +638,11 @@ def render_add_record_wizard():
 
                 # Persist start dates for any tanks being activated this session
                 if pending_activation:
-                    updated_tsd = legacy_db_utils.get_tank_start_dates(db_file, project_id)
+                    updated_tsd = legacy_db_utils.get_tank_start_dates(project_id)
                     for tank in pending_activation:
                         if not updated_tsd.get(tank):
                             updated_tsd[tank] = draft["record_ts"]
-                    legacy_db_utils.save_tank_start_dates(db_file, project_id, updated_tsd)
+                    legacy_db_utils.save_tank_start_dates(project_id, updated_tsd)
                     draft["activating_tanks"] = []
 
                 legacy_ui_event_utils.add_event_log_entry(f"New record saved ({draft['record_phase']}).")
@@ -652,15 +652,15 @@ def render_add_record_wizard():
                 stable_running_pumps = legacy_record_save_utils.compute_stable_running_pumps(draft, all_alarms)
 
                 closed_ids = legacy_ui_event_utils.auto_close_maintenance_for_stable_pumps(
-                    db_file,
+                    
                     project_id,
                     stable_running_pumps,
-                    lambda pid: legacy_db_utils.get_maintenance_events(db_file, pid),
+                    lambda pid: legacy_db_utils.get_maintenance_events(pid),
                 )
                 if closed_ids:
                     legacy_ui_event_utils.add_event_log_entry(f"Auto-closed maintenance events: {', '.join([str(x) for x in closed_ids])}.")
 
-                legacy_ui_event_utils.persist_event_log_for_project(db_file, project_id)
+                legacy_ui_event_utils.persist_event_log_for_project(project_id)
 
                 legacy_record_save_utils.finalize_record_save(
                     draft,

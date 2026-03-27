@@ -34,35 +34,34 @@ def render_confirmation_banner():
     return legacy_ui_event_utils.render_confirmation_banner()
 
 def get_project_records(project_id):
-    return legacy_db_utils.get_project_records(DB_FILE, project_id)
+    return legacy_db_utils.get_project_records(project_id)
 
 def get_latest_record(project_id):
-    return legacy_db_utils.get_latest_record(DB_FILE, project_id)
+    return legacy_db_utils.get_latest_record(project_id)
 
 def build_phase4_hardware_plan(pump_ids, status_grid):
     return legacy_state_utils.build_phase4_hardware_plan(pump_ids, status_grid)
 
 def has_baseline_record(project_id):
-    return legacy_db_utils.has_baseline_record(DB_FILE, project_id)
+    return legacy_db_utils.has_baseline_record(project_id)
 
 def clear_project_records(project_id):
-    return legacy_db_utils.clear_project_records(DB_FILE, project_id)
+    return legacy_db_utils.clear_project_records(project_id)
 
 def clear_project_maintenance_events(project_id):
-    return legacy_db_utils.clear_project_maintenance_events(DB_FILE, project_id)
+    return legacy_db_utils.clear_project_maintenance_events(project_id)
 
 def restore_project_formula_state(project_id):
-    return legacy_state_utils.restore_project_formula_state(DB_FILE, project_id)
+    return legacy_state_utils.restore_project_formula_state(project_id)
 
 def persist_event_log_for_project(project_id):
-    return legacy_ui_event_utils.persist_event_log_for_project(DB_FILE, project_id)
+    return legacy_ui_event_utils.persist_event_log_for_project(project_id)
 
 def add_event_log_entry(text):
     return legacy_ui_event_utils.add_event_log_entry(text)
 
 def auto_close_maintenance_for_stable_pumps(project_id, stable_pumps):
     return legacy_ui_event_utils.auto_close_maintenance_for_stable_pumps(
-        DB_FILE,
         project_id,
         stable_pumps,
         get_maintenance_events,
@@ -76,14 +75,13 @@ def build_dashboard_report_csv(project_id):
     )
 
 def restore_project_hardware_state(project_id):
-    return legacy_state_utils.restore_project_hardware_state(DB_FILE, project_id)
+    return legacy_state_utils.restore_project_hardware_state(project_id)
 
 def get_maintenance_events(project_id):
-    return legacy_db_utils.get_maintenance_events(DB_FILE, project_id)
+    return legacy_db_utils.get_maintenance_events(project_id)
 
 def render_add_maintenance_wizard():
     return legacy_maintenance_wizard.render_add_maintenance_wizard(
-        DB_FILE,
         inject_industrial_css,
         parse_ts,
         get_maintenance_events,
@@ -93,15 +91,14 @@ def render_add_maintenance_wizard():
     )
 
 def render_add_record_wizard():
-    return legacy_add_record_wizard.render_add_record_wizard(DB_FILE)
+    return legacy_add_record_wizard.render_add_record_wizard()
 
 # --- 3. THE WIZARD (FULL STEPS RESTORED) ---
 def render_project_form():
-    return legacy_project_form.render_project_form(DB_FILE)
+    return legacy_project_form.render_project_form()
 # --- HELPER FUNCTIONS ---
 def handle_open_project(project_id):
     return legacy_project_state.handle_open_project(
-        DB_FILE,
         project_id,
         restore_project_hardware_state,
         restore_project_formula_state,
@@ -109,7 +106,6 @@ def handle_open_project(project_id):
 
 def handle_modify_project(project_id):
     return legacy_project_state.handle_modify_project(
-        DB_FILE,
         project_id,
         restore_project_formula_state,
     )
@@ -128,14 +124,12 @@ simple_page_handled = legacy_pages.route_simple_pages(
 
 if not simple_page_handled and st.session_state.page == "home":
     legacy_pages.render_home_page(
-        DB_FILE,
         handle_open_project,
         handle_modify_project,
     )
 
 elif not simple_page_handled and st.session_state.page == "dashboard":
     legacy_pages.render_dashboard_page(
-        DB_FILE,
         get_latest_record,
         get_project_records,
         get_maintenance_events,

@@ -72,6 +72,9 @@ def inject_compact_css():
                 padding: 2.5rem 2rem;
                 box-shadow: 0 20px 50px rgba(0, 0, 0, 0.28);
                 margin-bottom: 1.6rem;
+                width: 100%;
+                max-width: 100%;
+                box-sizing: border-box;
             }
 
             .hero-kicker {
@@ -380,52 +383,54 @@ def inject_compact_css():
                 border-radius: 16px !important;
             }
 
-            @media (max-width: 768px) {
+            @media (max-width: 900px) {
                 [data-testid="stMainBlockContainer"] {
-                    padding-left: 1rem !important;
-                    padding-right: 1rem !important;
+                    padding-left: 0.5rem !important;
+                    padding-right: 0.5rem !important;
                 }
-
                 .hero-panel {
-                    padding: 1.6rem 1.2rem;
+                    padding: 1.2rem 0.5rem;
                 }
-
                 .hero-title {
-                    font-size: 2rem;
+                    font-size: 1.5rem;
                 }
             }
 
             /* Extra mobile-friendly tweaks for phones */
             @media (max-width: 600px) {
                 [data-testid="stMainBlockContainer"] {
-                    padding-left: 0.3rem !important;
-                    padding-right: 0.3rem !important;
+                    padding-left: 0.1rem !important;
+                    padding-right: 0.1rem !important;
                 }
                 .hero-panel {
-                    padding: 0.7rem 0.3rem;
+                    padding: 0.4rem 0.1rem;
                 }
                 .hero-title {
-                    font-size: 1.3rem;
-                }
-                .hero-subtitle {
-                    font-size: 0.9rem;
-                }
-                .section-heading {
-                    font-size: 1rem;
-                }
-                .dashboard-title {
                     font-size: 1.1rem;
                 }
+                .hero-subtitle {
+                    font-size: 0.8rem;
+                }
+                .section-heading {
+                    font-size: 0.9rem;
+                }
+                .dashboard-title {
+                    font-size: 1rem;
+                }
                 .project-table-header, .project-cell {
-                    font-size: 0.85rem;
+                    font-size: 0.75rem;
                 }
                 img, .stImage {
                     max-width: 100% !important;
                     height: auto !important;
                 }
                 .stButton > button, .stDownloadButton > button {
-                    min-height: 2.2rem !important;
-                    font-size: 0.9rem !important;
+                    min-height: 2rem !important;
+                    font-size: 0.8rem !important;
+                }
+                /* Stack columns vertically for project table */
+                .stHorizontalBlock {
+                    flex-direction: column !important;
                 }
             }
         </style>

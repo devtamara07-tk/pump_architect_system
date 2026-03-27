@@ -55,7 +55,7 @@ def render_home():
         unsafe_allow_html=True,
     )
 
-    col_new, _ = st.columns([1.2, 4])
+    col_new, _ = st.columns(2)
     with col_new:
         if st.button("Create New Project", type="primary", use_container_width=True):
             st.session_state.page = "create"
@@ -71,13 +71,13 @@ def render_home():
             projects = projects.sort_values(by="created_at", ascending=False, na_position="last")
 
         with st.container(border=True):
-            header_cols = st.columns([0.5, 1.1, 2.9, 1.4, 1.1, 1.1, 1.1])
+            header_cols = st.columns(7)
             for col, title in zip(header_cols, ["No.", "Status", "Name", "Date", "Open", "Modify", "Delete"]):
                 col.markdown(f"<div class='project-table-header'>{title}</div>", unsafe_allow_html=True)
 
             for idx, (_, row) in enumerate(projects.iterrows(), start=1):
                 date_str = str(row.get("created_at", ""))[:10] if row.get("created_at") else "N/A"
-                row_cols = st.columns([0.5, 1.1, 2.9, 1.4, 1.1, 1.1, 1.1])
+                row_cols = st.columns(7)
                 confirm_key = f"delete_confirm_{row['project_id']}"
 
                 row_cols[0].markdown(f"<div class='project-cell'>{idx}</div>", unsafe_allow_html=True)

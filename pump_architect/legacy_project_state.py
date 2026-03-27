@@ -302,7 +302,7 @@ def handle_open_project(
         "step6_watchdogs, step6_limits, step6_event_log, watchdog_sync_ts, "
         "step6_extra_limits, layout, step6_dashboard_tracker, "
         "step5_var_mapping, step5_formulas "
-        "FROM projects WHERE project_id = ?",
+        "FROM projects WHERE project_id = %s",
         (project_id,),
     )
     proj_row = cur.fetchone()
@@ -317,7 +317,7 @@ def handle_open_project(
         st.session_state.water_tanks = proj_row[5].split("||") if proj_row[5] else ["Water Tank 1"]
 
         try:
-            query = "SELECT * FROM pumps WHERE project_id = ?"
+            query = "SELECT * FROM pumps WHERE project_id = %s"
             st.session_state.active_pumps_df = pd.read_sql_query(query, conn, params=(project_id,))
         except Exception:
             st.session_state.active_pumps_df = pd.DataFrame()
@@ -388,7 +388,7 @@ def handle_modify_project(project_id, restore_project_formula_state):
         "layout, hardware_list, hardware_dfs, hardware_ds, step6_watchdogs, "
         "step6_limits, step6_event_log, watchdog_sync_ts, step6_extra_limits, "
         "step6_dashboard_tracker, step5_var_mapping, step5_formulas "
-        "FROM projects WHERE project_id = ?",
+        "FROM projects WHERE project_id = %s",
         (project_id,),
     )
     proj_row = cur.fetchone()
@@ -449,7 +449,7 @@ def handle_modify_project(project_id, restore_project_formula_state):
                 pass
 
         try:
-            query = "SELECT * FROM pumps WHERE project_id = ?"
+            query = "SELECT * FROM pumps WHERE project_id = %s"
             pumps_df = pd.read_sql_query(query, conn, params=(project_id,))
             if not pumps_df.empty:
                 keep_cols = [

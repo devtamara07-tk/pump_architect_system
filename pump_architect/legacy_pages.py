@@ -117,15 +117,15 @@ def render_home_page(handle_open_project, handle_modify_project):
 
             if c[6].button("DANGER Confirm Delete Project", key=f"conf_{idx}", use_container_width=True, type="primary"):
                 conn = get_connection()
-                cur.execute("DELETE FROM projects WHERE project_id=?", (p[0],))
+                cur.execute("DELETE FROM projects WHERE project_id=%s", (p[0],))
 
                 try:
-                    cur.execute("DELETE FROM pumps WHERE project_name=?", (p[0],))
+                    cur.execute("DELETE FROM pumps WHERE project_name=%s", (p[0],))
                 except Exception:
                     cur.execute("PRAGMA table_info(pumps)")
                     cols = [info[1] for info in cur.fetchall()]
                     actual_col = cols[1]
-                    cur.execute(f"DELETE FROM pumps WHERE {actual_col}=?", (p[0],))
+                    cur.execute(f"DELETE FROM pumps WHERE {actual_col}=%s", (p[0],))
 
                 conn.commit()
                 conn.close()

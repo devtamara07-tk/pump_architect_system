@@ -98,7 +98,7 @@ def restore_project_hardware_state(project_id):
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(
-        "SELECT hardware_list, hardware_dfs, hardware_ds FROM projects WHERE project_id = ?",
+        "SELECT hardware_list, hardware_dfs, hardware_ds FROM projects WHERE project_id = %s",
         (project_id,)
     )
     proj_row = cur.fetchone()

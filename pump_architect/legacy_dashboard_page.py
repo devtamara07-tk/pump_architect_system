@@ -80,7 +80,7 @@ def render_dashboard_page(
 
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT run_mode, target_val, test_type FROM projects WHERE project_id = ?", (project_name,))
+    cur.execute("SELECT run_mode, target_val, test_type FROM projects WHERE project_id = %s", (project_name,))
     proj_row = cur.fetchone()
     cur.close()
     conn.close()

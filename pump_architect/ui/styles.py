@@ -2,46 +2,6 @@ import streamlit as st
 
 
 def inject_compact_css():
-                .project-table-header-row, .project-table-row {
-                    width: 100%;
-                    display: flex;
-                    flex-wrap: wrap;
-                }
-                @media (max-width: 900px) {
-                    .hero-panel {
-                        padding: 1.2rem 0.5rem;
-                    }
-                    .hero-title {
-                        font-size: 1.5rem;
-                    }
-                    .project-table-header, .project-cell, .status-pill {
-                        font-size: 0.9rem;
-                    }
-                }
-                @media (max-width: 600px) {
-                    .hero-panel {
-                        padding: 0.4rem 0.1rem;
-                    }
-                    .hero-title {
-                        font-size: 1.1rem;
-                    }
-                    .hero-subtitle {
-                        font-size: 0.8rem;
-                    }
-                    .section-heading {
-                        font-size: 0.9rem;
-                    }
-                    .dashboard-title {
-                        font-size: 1rem;
-                    }
-                    .project-table-header, .project-cell, .status-pill {
-                        font-size: 0.75rem;
-                    }
-                    .project-table-header-row, .project-table-row {
-                        flex-direction: column;
-                        align-items: flex-start;
-                    }
-                }
     """Apply the legacy-aligned industrial theme to the modular UI."""
     st.markdown("""
         <style>
